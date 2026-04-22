@@ -8,7 +8,9 @@ This document explains the exact SQL queries used in the **Manage Users** segmen
 **Function:** Fetches the list of all users to display in the management table. Handles both the default view and filtered search results.
 
 ### A. Default View (All Users)
-When you first open the page, this query runs to show everyone, starting with the newest members.
+*   **File:** [`main.py`](file:///home/ahnaf-zakaria/Desktop/370_Project/main.py)
+*   **Lines:** 67-69
+
 ```sql
 SELECT user_id, full_name, email, role, company_name, status, created_at
 FROM USERS
@@ -17,7 +19,9 @@ ORDER BY created_at DESC;
 *   **`ORDER BY created_at DESC`**: Ensures that the most recently added users appear at the top for immediate verification.
 
 ### B. Filtered Search
-If you type something into the search bar, the query changes to look for matches across multiple columns.
+*   **File:** [`main.py`](file:///home/ahnaf-zakaria/Desktop/370_Project/main.py)
+*   **Lines:** 54-61
+
 ```sql
 SELECT user_id, full_name, email, role, company_name, status, created_at
 FROM USERS
@@ -33,7 +37,8 @@ ORDER BY created_at DESC;
 ---
 
 ## 2. Adding a New User
-**Function:** Creates a persistent record for a new member in the system.
+*   **File:** [`main.py`](file:///home/ahnaf-zakaria/Desktop/370_Project/main.py)
+*   **Line:** 124
 
 ```sql
 INSERT INTO USERS (full_name, email, role, company_name, status) 
@@ -49,7 +54,9 @@ VALUES (%s, %s, %s, %s, %s);
 **Function:** Safely removes a user while ensuring "Referential Integrity" (no ghost users linked to active orders).
 
 ### Step 1: The Dependency Check
-Before deleting, the system checks if the user is "requested_by" in any existing orders.
+*   **File:** [`main.py`](file:///home/ahnaf-zakaria/Desktop/370_Project/main.py)
+*   **Lines:** 149-150
+
 ```sql
 SELECT order_id 
 FROM ORDERS 
@@ -59,7 +66,9 @@ ORDER BY order_id ASC;
 *   **Logic**: If this returns even one `order_id`, the system cancels the deletion and shows you exactly which orders are blocking it.
 
 ### Step 2: The Deletion
-If no orders are found, the system proceeds with the actual removal.
+*   **File:** [`main.py`](file:///home/ahnaf-zakaria/Desktop/370_Project/main.py)
+*   **Line:** 163
+
 ```sql
 DELETE FROM USERS 
 WHERE user_id = %s;
