@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Order Ledger | IMS Core{% endblock %}
+
+{% block content %}
+<div class="row mb-5 align-items-center">
+    <div class="col-lg-6">
+        <h2 class="mb-1">Order Management Ledger</h2>
+        <p class="text-muted">Lifecycle tracking for sales, fulfillment, and cancellations.</p>
+    </div>
+    <div class="col-lg-6 text-lg-end">
+        <a href="/create-order" class="btn btn-primary">+ New Transaction</a>
+    </div>
+</div>
+
+<div class="table-container">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Order Ref</th>
+                <th>Client Name</th>
+                <th>timestamp</th>
+                <th>Value</th>
+                <th>Workflow Status</th>
+                <th class="text-center">Change State</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if orders %}
+                {% for o in orders %}
+                <tr>
+                    <td class="fw-bold">#{{ o.order_id }}</td>
+                    <td>
+                        <div class="fw-semibold">{{ o.customer_name }}</div>
+                        <div class="text-muted small">UID: {{ o.customer_id }}</div>
+                    </td>
+                    <td class="text-muted small">{{ o.order_date }}</td>
+                    <td class="fw-bold text-primary">${{ "%.2f"|format(o.total_amount|float) }}</td>
+                    <td>
+                        {% if o.status == 'PENDING' %}
+                            <span class="badge bg-warning text-dark"><i class="bi bi-clock-history"></i> PENDING</span>
+                        {% elif o.status == 'SHIPPED' %}
+                            <span class="badge bg-info text-white">SHIPPED</span>
+                        {% elif o.status == 'DELIVERED' %}
+                            <span class="badge bg-success">DELIVERED</span>
+                        {% elif o.status == 'CANCELLED' %}
+                            <span class="badge bg-danger">CANCELLED</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ o.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        <form action="/update-order-status" method="POST" class="d-inline-flex justify-content-center">
+                            <input type="hidden" name="order_id" value="{{ o.order_id }}">
+                            <div class="input-group input-group-sm shadow-sm">
+                                <select name="new_status" class="form-select border-0 bg-light">
+                                    <option value="PENDING" {% if o.status == 'PENDING' %}selected{% endif %}>Pending</option>
+                                    <option value="SHIPPED" {% if o.status == 'SHIPPED' %}selected{% endif %}>Shipped</option>
+                                    <option value="DELIVERED" {% if o.status == 'DELIVERED' %}selected{% endif %}>Delivered</option>
+                                    <option value="CANCELLED" {% if o.status == 'CANCELLED' %}selected{% endif %}>Cancelled</option>
+                                </select>
+                                <button type="submit" class="btn btn-outline-primary border-0">Commit</button>
+                            </div>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-5">
+                        <div class="opacity-50 mb-3">📋</div>
+                        <em>No transactions found in the global ledger.</em>
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

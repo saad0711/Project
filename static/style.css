@@ -1,0 +1,170 @@
+/* static/style.css - Premium Sage & Emerald Theme */
+
+:root {
+    --primary: #2d5a4c;
+    --primary-light: #5e8b7e;
+    --accent: #8fb9a8;
+    --bg-main: #f8faf9;
+    --surface: #ffffff;
+    --text-main: #1a2e26;
+    --text-muted: #5c7a6f;
+    --border-color: #e2e8e5;
+    --danger: #d9534f;
+    --success: #5cb85c;
+    --warning: #f0ad4e;
+    --radius: 16px;
+    --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.03);
+    --shadow-strong: 0 10px 30px rgba(26, 46, 38, 0.08);
+}
+
+body {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+    padding-top: 100px;
+}
+
+/* Glassmorphism Navbar */
+.navbar-custom {
+    background: rgba(255, 255, 255, 0.8) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(226, 232, 229, 0.5);
+    padding: 1.2rem 0;
+    box-shadow: var(--shadow-soft);
+}
+
+.navbar-brand {
+    font-weight: 800;
+    font-size: 1.5rem;
+    color: var(--primary) !important;
+    letter-spacing: -1px;
+}
+
+.nav-link {
+    font-weight: 500;
+    color: var(--text-muted) !important;
+    padding: 0.5rem 1rem !important;
+    transition: all 0.3s ease;
+    border-radius: 8px;
+}
+
+.nav-link:hover {
+    color: var(--primary) !important;
+    background: rgba(45, 90, 76, 0.05);
+}
+
+/* Cards & Surfaces */
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-strong);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(26, 46, 38, 0.12);
+}
+
+.card-header {
+    background: transparent;
+    border-bottom: 1px solid var(--border-color);
+    padding: 1.5rem;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+/* Tables */
+.table-container {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-soft);
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+.table thead th {
+    background-color: #f1f5f3;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    padding: 1rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.table tbody td {
+    padding: 1.2rem 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(45, 90, 76, 0.02);
+}
+
+/* Badges */
+.badge {
+    padding: 0.5em 1em;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+/* Buttons */
+.btn {
+    border-radius: 10px;
+    padding: 0.6rem 1.5rem;
+    font-weight: 600;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-primary {
+    background: var(--primary);
+    border: none;
+}
+
+.btn-primary:hover {
+    background: var(--primary-light);
+    transform: scale(1.02);
+    box-shadow: 0 4px 15px rgba(45, 90, 76, 0.3);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: var(--bg-main);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-light);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.container {
+    animation: fadeIn 0.6s ease-out;
+}
+
+/* Remove Instructor SQL Placeholders */
+.sql-placeholder {
+    display: none !important;
+}

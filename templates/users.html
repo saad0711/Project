@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}User Management | IMS Core{% endblock %}
+
+{% block content %}
+<div class="row mb-5 align-items-center">
+    <div class="col-lg-6">
+        <h2 class="mb-1">User & Role Management</h2>
+        <p class="text-muted">Maintain global registry of suppliers, retailers, and customers.</p>
+    </div>
+    <div class="col-lg-6 text-lg-end">
+        <button class="btn btn-primary">+ Add New User</button>
+    </div>
+</div>
+
+<div class="table-container">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>User ID</th>
+                <th>Full Name</th>
+                <th>Email Contact</th>
+                <th>Role</th>
+                <th>Organization</th>
+                <th>Status</th>
+                <th>Joined</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if users %}
+                {% for user in users %}
+                <tr>
+                    <td class="fw-bold">#{{ user.user_id }}</td>
+                    <td>{{ user.full_name }}</td>
+                    <td class="text-muted">{{ user.email }}</td>
+                    <td><span class="badge bg-light text-dark shadow-sm border">{{ user.role }}</span></td>
+                    <td>{{ user.company_name or 'Independent' }}</td>
+                    <td>
+                        <span class="badge {% if user.status == 'Active' %}bg-success{% else %}bg-secondary{% endif %}">
+                            {{ user.status }}
+                        </span>
+                    </td>
+                    <td class="small text-muted">{{ user.created_at }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-5">
+                        <div class="opacity-50 mb-3">📭</div>
+                        <em>Initialize the database to see user records.</em>
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

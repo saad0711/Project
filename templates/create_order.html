@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Place New Order | IMS Core{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Create Transaction</h4>
+            </div>
+            <div class="card-body p-4">
+                <p class="text-muted small mb-4">Select a customer and product to initiate an atomic order transaction.</p>
+                
+                <form action="/create-order" method="POST">
+                    <div class="mb-4">
+                        <label for="customer_id" class="form-label fw-bold small text-uppercase">Target Customer</label>
+                        <select class="form-select shadow-sm" id="customer_id" name="customer_id" required>
+                            <option value="">-- Search Customer --</option>
+                            {% for c in customers %}
+                                <option value="{{ c.user_id }}">{{ c.full_name }} ({{ c.email }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="product_id" class="form-label fw-bold small text-uppercase">Asset Selection</label>
+                        <select class="form-select shadow-sm" id="product_id" name="product_id" required>
+                            <option value="">-- Search Product Category --</option>
+                            {% for p in products %}
+                                <option value="{{ p.product_id }}">{{ p.product_name }} — ${{ p.selling_price }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="quantity" class="form-label fw-bold small text-uppercase">Quantity</label>
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-light border-0">Qty</span>
+                            <input type="number" class="form-control border-0" id="quantity" name="quantity" min="1" value="1" required>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-3 shadow">
+                        Finalize & Commit Order
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="mb-0">Recent Order Activity</h4>
+            <a href="/manage-orders" class="btn btn-sm btn-outline-primary">View Ledger</a>
+        </div>
+        
+        <div class="table-container bg-white">
+            <table class="table table-sm">
+                <thead>
+                    <tr class="text-muted small">
+                        <th>ID</th>
+                        <th>TS_RECORD</th>
+                        <th>ENTITY</th>
+                        <th class="text-end">STATUS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-5">
+                            <div class="small opacity-50">READY FOR NEW INPUT</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

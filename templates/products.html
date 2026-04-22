@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Product Catalog | IMS Core{% endblock %}
+
+{% block content %}
+<div class="row mb-5 align-items-center">
+    <div class="col-lg-6">
+        <h2 class="mb-1">Product Catalog</h2>
+        <p class="text-muted">Direct mapping of SKUs, pricing, and supplier relationships.</p>
+    </div>
+    <div class="col-lg-6 text-lg-end">
+        <button class="btn btn-primary">+ Register Product</button>
+    </div>
+</div>
+
+<div class="table-container">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Product ID</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Unit Cost</th>
+                <th>Selling Price</th>
+                <th>Margin</th>
+                <th>Supplier</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if products %}
+                {% for p in products %}
+                <tr>
+                    <td class="fw-bold text-muted">#{{ p.product_id }}</td>
+                    <td class="fw-semibold">{{ p.product_name }}</td>
+                    <td><span class="badge bg-light text-dark border">{{ p.category }}</span></td>
+                    <td class="text-danger">-${{ p.unit_cost }}</td>
+                    <td class="text-success fw-bold">${{ p.selling_price }}</td>
+                    <td>
+                        <span class="badge bg-success bg-opacity-10 text-success">
+                            +${{ "%.2f"|format((p.selling_price or 0)|float - (p.unit_cost or 0)|float) }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="small fw-semibold">{{ p.supplier_name }}</div>
+                        <div class="text-muted smallest">ID: {{ p.supplier_id }}</div>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-5">
+                        <div class="opacity-50 mb-3">📦</div>
+                        <em>Initialize the database to see product registry.</em>
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

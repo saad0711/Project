@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics Hub | IMS Core{% endblock %}
+
+{% block content %}
+<div class="row mb-5 align-items-center">
+    <div class="col-lg-6">
+        <h2 class="mb-1">Intelligence Dashboard</h2>
+        <p class="text-muted">High-fidelity metrics and enterprise-level analytics.</p>
+    </div>
+    <div class="col-lg-6 text-lg-end">
+        <button class="btn btn-primary shadow-sm" onclick="window.print()">
+            <span class="me-2">📄</span> Export Report
+        </button>
+    </div>
+</div>
+
+<!-- Key Performance Indicators -->
+<div class="row g-4 mb-5">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm" style="border-left: 4px solid var(--primary) !important;">
+            <div class="card-body p-4">
+                <div class="text-muted small fw-bold text-uppercase mb-2">Total Registry</div>
+                <h2 class="display-6 fw-bold mb-0 text-primary">{{ metrics.total_users | default('0') }}</h2>
+                <div class="small mt-2 text-muted">Active Users</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm" style="border-left: 4px solid #5cb85c !important;">
+            <div class="card-body p-4">
+                <div class="text-muted small fw-bold text-uppercase mb-2">Total Revenue</div>
+                <h2 class="display-6 fw-bold mb-0 text-success">${{ "%.2f"|format(metrics.total_revenue|float) if metrics.total_revenue else '0.00' }}</h2>
+                <div class="small mt-2 text-muted text-success">Verified Transactions</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm" style="border-left: 4px solid #f0ad4e !important;">
+            <div class="card-body p-4">
+                <div class="text-muted small fw-bold text-uppercase mb-2">Pending Workflow</div>
+                <h2 class="display-6 fw-bold mb-0 text-warning">{{ metrics.pending_orders | default('0') }}</h2>
+                <div class="small mt-2 text-muted">Awaiting Action</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm" style="border-left: 4px solid #d9534f !important;">
+            <div class="card-body p-4">
+                <div class="text-muted small fw-bold text-uppercase mb-2">Inventory Risk</div>
+                <h2 class="display-6 fw-bold mb-0 text-danger">{{ metrics.low_stock_items | default('0') }}</h2>
+                <div class="small mt-2 text-muted text-danger">Below Min Threshold</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Top Selling Assets -->
+    <div class="col-md-6">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-header bg-white border-0 py-4">
+                <h5 class="mb-0 fw-bold">Top Performing Assets</h5>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% if top_products %}
+                        {% for p in top_products %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center py-3 px-4 border-0 border-bottom">
+                                <div>
+                                    <div class="fw-semibold">{{ p.product_name }}</div>
+                                    <div class="text-muted smallest">Market Demand Ranking</div>
+                                </div>
+                                <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3">{{ p.total_sold }} Sold</span>
+                            </li>
+                        {% endfor %}
+                    {% else %}
+                        <li class="list-group-item text-center py-5 text-muted border-0">
+                            <div class="opacity-25 mb-2">📊</div>
+                            No sales data available.
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Strategic Insights -->
+    <div class="col-md-6">
+        <div class="card h-100 shadow-sm border-0 bg-primary text-white">
+            <div class="card-body p-5">
+                <h4 class="fw-bold mb-4">Strategic Insights</h4>
+                <div class="mb-4">
+                    <h6 class="text-white text-opacity-75 small text-uppercase fw-bold mb-2">Automated Alert</h6>
+                    <p class="mb-0">
+                        {% if metrics.low_stock_items and metrics.low_stock_items > 0 %}
+                            Attention: There are <strong>{{ metrics.low_stock_items }}</strong> items requiring immediate restock to maintain operational continuity.
+                        {% else %}
+                            All inventory systems are currently within optimal parameters. No immediate action required.
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="p-4 rounded-4 bg-white bg-opacity-10">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="me-3 fs-3">📈</span>
+                        <div class="fw-bold">Growth Indicator</div>
+                    </div>
+                    <p class="small mb-0 opacity-75">
+                        Current data shows stable transaction flow. Recommendation: Optimize supplier lead times for top-selling hardware components.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
