@@ -123,6 +123,10 @@ class _SQLiteCursor:
     def lastrowid(self):
         return self._cur.lastrowid
 
+    @property
+    def rowcount(self):
+        return self._cur.rowcount
+
     def close(self):
         self._cur.close()
 
