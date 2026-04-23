@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Request, Form, Depends
+from fastapi import FastAPI, Request, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
 import database
 from datetime import datetime
+from urllib.parse import quote_plus
 
 app = FastAPI(title="Inventory Management System")
 
@@ -25,23 +26,157 @@ async def home(request: Request):
 
 # Feature 1: User & Role Management
 @app.get("/users", response_class=HTMLResponse)
-async def view_users(request: Request):
+async def view_users(request: Request, q: str = ""):
     db = database.get_db_connection()
-    if db is None: return HTMLResponse("DB Connection Failed", status_code=500)
+    if db is None:
+        return templates.TemplateResponse(
+            request=request,
+            name="users.html",
+            context={
+                "users": [],
+                "search_query": q,
+                "status": "error",
+                "message": "Database connection failed. Start MySQL and refresh.",
+                "total_users": 0,
+                "active_users": 0,
+            },
+        )
+
     cursor = db.cursor(dictionary=True)
+    status = request.query_params.get("status")
+    message = request.query_params.get("message")
+    users = []
+    total_users = 0
+    active_users = 0
     
     try:
-        sql = "SELECT user_id, full_name, email, role, company_name, status, created_at FROM USERS ORDER BY created_at DESC"
-        cursor.execute(sql)
+        if q.strip():
+            sql = """
+                SELECT user_id, full_name, email, role, company_name, status, created_at
+                FROM USERS
+                WHERE full_name LIKE %s
+                   OR email LIKE %s
+                   OR role LIKE %s
+                   OR company_name LIKE %s
+                ORDER BY created_at DESC
+            """
+            like_pattern = f"%{q.strip()}%"
+            cursor.execute(sql, (like_pattern, like_pattern, like_pattern, like_pattern))
+        else:
+            sql = """
+                SELECT user_id, full_name, email, role, company_name, status, created_at
+                FROM USERS
+                ORDER BY created_at DESC
+            """
+            cursor.execute(sql)
+
         users = cursor.fetchall()
+        total_users = len(users)
+        active_users = sum(1 for user in users if str(user.get("status", "")).lower() == "active")
     except Exception as e:
         print(f"Error fetching users: {e}")
+        status = "error"
+        message = "Could not load users right now."
         users = []
     finally:
         cursor.close()
         db.close()
         
-    return templates.TemplateResponse(request=request, name="users.html", context={"users": users})
+    return templates.TemplateResponse(
+        request=request,
+        name="users.html",
+        context={
+            "users": users,
+            "search_query": q,
+            "status": status,
+            "message": message,
+            "total_users": total_users,
+            "active_users": active_users,
+        },
+    )
+
+@app.post("/users/add")
+async def add_user(
+    full_name: str = Form(...),
+    email: str = Form(...),
+    role: str = Form(...),
+    company_name: str = Form(""),
+    status: str = Form("Active"),
+):
+    full_name = full_name.strip()
+    email = email.strip().lower()
+    role = role.strip()
+    company_name = company_name.strip()
+    status = status.strip() or "Active"
+
+    if not full_name or not email or not role:
+        message = quote_plus("Please fill all required fields.")
+        return RedirectResponse(url=f"/users?status=error&message={message}", status_code=303)
+
+    db = database.get_db_connection()
+    if db is None:
+        message = quote_plus("Database connection failed.")
+        return RedirectResponse(url=f"/users?status=error&message={message}", status_code=303)
+
+    cursor = db.cursor()
+    redirect_url = "/users?status=success&message=User+added+successfully"
+    try:
+        sql = "INSERT INTO USERS (full_name, email, role, company_name, status) VALUES (%s, %s, %s, %s, %s)"
+        cursor.execute(sql, (full_name, email, role, company_name or None, status))
+        db.commit()
+    except Exception as e:
+        print(f"Error adding user: {e}")
+        db.rollback()
+        message = quote_plus("Could not add user. Check duplicate email or invalid input.")
+        redirect_url = f"/users?status=error&message={message}"
+    finally:
+        cursor.close()
+        db.close()
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+@app.post("/users/delete")
+async def delete_user(user_id: int = Form(...)):
+    db = database.get_db_connection()
+    if db is None:
+        message = quote_plus("Database connection failed.")
+        return RedirectResponse(url=f"/users?status=error&message={message}", status_code=303)
+
+    cursor = db.cursor(dictionary=True)
+    redirect_url = "/users?status=success&message=User+removed+successfully"
+    try:
+        # Check linked orders first and return exact order IDs.
+        cursor.execute(
+            "SELECT order_id FROM ORDERS WHERE requested_by = %s ORDER BY order_id ASC",
+            (user_id,),
+        )
+        linked_orders = cursor.fetchall() or []
+
+        if linked_orders:
+            order_ids = [str(order.get("order_id")) for order in linked_orders if order.get("order_id") is not None]
+            order_list = ", ".join(f"#{order_id}" for order_id in order_ids)
+            label = "order number" if len(order_ids) == 1 else "order numbers"
+            message = quote_plus(f"Cannot remove user. Linked {label}: {order_list}")
+            redirect_url = f"/users?status=warning&message={message}"
+            db.rollback()
+            return RedirectResponse(url=redirect_url, status_code=303)
+
+        sql = "DELETE FROM USERS WHERE user_id = %s"
+        cursor.execute(sql, (user_id,))
+        if cursor.rowcount <= 0:
+            message = quote_plus("No matching user found.")
+            redirect_url = f"/users?status=warning&message={message}"
+            db.rollback()
+        else:
+            db.commit()
+    except Exception as e:
+        print(f"Error deleting user: {e}")
+        db.rollback()
+        message = quote_plus("Could not remove user due to related records. Please review linked data and try again.")
+        redirect_url = f"/users?status=error&message={message}"
+    finally:
+        cursor.close()
+        db.close()
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 # Feature 2: Product Catalog
 @app.get("/products", response_class=HTMLResponse)
