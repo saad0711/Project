@@ -3,10 +3,49 @@
 {% block title %}Order Ledger | IMS Core{% endblock %}
 
 {% block content %}
+<style>
+    .decision-actions {
+        display: inline-flex;
+        gap: 0.5rem;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .action-btn {
+        width: 2.1rem;
+        height: 2.1rem;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        font-weight: 700;
+        line-height: 1;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+        border: none;
+    }
+
+    .action-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.16);
+        opacity: 0.95;
+    }
+
+    .action-btn-approve {
+        background: #1f9d55;
+        color: #ffffff;
+    }
+
+    .action-btn-decline {
+        background: #d64545;
+        color: #ffffff;
+    }
+</style>
+
 <div class="row mb-5 align-items-center">
     <div class="col-lg-6">
         <h2 class="mb-1">Order Management Ledger</h2>
-        <p class="text-muted">Lifecycle tracking for sales, fulfillment, and cancellations.</p>
+        <p class="text-muted">Lifecycle tracking with one-click approve or decline controls.</p>
     </div>
     <div class="col-lg-6 text-lg-end">
         <a href="/create-order" class="btn btn-primary">+ New Transaction</a>
@@ -22,7 +61,7 @@
                 <th>timestamp</th>
                 <th>Value</th>
                 <th>Workflow Status</th>
-                <th class="text-center">Change State</th>
+                <th class="text-center">Approve / Decline</th>
             </tr>
         </thead>
         <tbody>
@@ -39,6 +78,8 @@
                     <td>
                         {% if o.status == 'PENDING' %}
                             <span class="badge bg-warning text-dark"><i class="bi bi-clock-history"></i> PENDING</span>
+                        {% elif o.status == 'CONFIRMED' %}
+                            <span class="badge bg-success">CONFIRMED</span>
                         {% elif o.status == 'SHIPPED' %}
                             <span class="badge bg-info text-white">SHIPPED</span>
                         {% elif o.status == 'DELIVERED' %}
@@ -50,18 +91,35 @@
                         {% endif %}
                     </td>
                     <td class="text-center">
-                        <form action="/update-order-status" method="POST" class="d-inline-flex justify-content-center">
-                            <input type="hidden" name="order_id" value="{{ o.order_id }}">
-                            <div class="input-group input-group-sm shadow-sm">
-                                <select name="new_status" class="form-select border-0 bg-light">
-                                    <option value="PENDING" {% if o.status == 'PENDING' %}selected{% endif %}>Pending</option>
-                                    <option value="SHIPPED" {% if o.status == 'SHIPPED' %}selected{% endif %}>Shipped</option>
-                                    <option value="DELIVERED" {% if o.status == 'DELIVERED' %}selected{% endif %}>Delivered</option>
-                                    <option value="CANCELLED" {% if o.status == 'CANCELLED' %}selected{% endif %}>Cancelled</option>
-                                </select>
-                                <button type="submit" class="btn btn-outline-primary border-0">Commit</button>
+                        {% if o.status == 'PENDING' %}
+                            <div class="decision-actions">
+                                <form action="/update-order-status" method="POST" class="d-inline">
+                                    <input type="hidden" name="order_id" value="{{ o.order_id }}">
+                                    <input type="hidden" name="new_status" value="CONFIRMED">
+                                    <input type="hidden" name="redirect_to" value="/manage-orders">
+                                    <button type="submit" class="action-btn action-btn-approve" title="Approve order" aria-label="Approve order">
+                                        &check;
+                                    </button>
+                                </form>
+                                <form action="/update-order-status" method="POST" class="d-inline">
+                                    <input type="hidden" name="order_id" value="{{ o.order_id }}">
+                                    <input type="hidden" name="new_status" value="CANCELLED">
+                                    <input type="hidden" name="redirect_to" value="/manage-orders">
+                                    <button type="submit" class="action-btn action-btn-decline" title="Decline order" aria-label="Decline order">
+                                        &times;
+                                    </button>
+                                </form>
                             </div>
-                        </form>
+                        {% elif o.status == 'CONFIRMED' %}
+                            <form action="/update-order-status" method="POST" class="d-inline">
+                                <input type="hidden" name="order_id" value="{{ o.order_id }}">
+                                <input type="hidden" name="new_status" value="SHIPPED">
+                                <input type="hidden" name="redirect_to" value="/manage-orders">
+                                <button type="submit" class="btn btn-sm btn-info text-white" title="Ship order" aria-label="Ship order">Ship</button>
+                            </form>
+                        {% else %}
+                            <span class="text-muted small">Finalized</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

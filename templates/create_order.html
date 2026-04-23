@@ -3,6 +3,41 @@
 {% block title %}Place New Order | IMS Core{% endblock %}
 
 {% block content %}
+<style>
+    .decision-inline {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.35rem;
+    }
+
+    .decision-btn {
+        border: none;
+        border-radius: 999px;
+        min-width: 2rem;
+        height: 2rem;
+        padding: 0 0.55rem;
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.85rem;
+        line-height: 1;
+        transition: transform 0.12s ease, opacity 0.12s ease;
+    }
+
+    .decision-btn:hover {
+        transform: translateY(-1px);
+        opacity: 0.93;
+    }
+
+    .decision-yes {
+        background-color: #198754;
+    }
+
+    .decision-no {
+        background-color: #dc3545;
+    }
+</style>
+
 <div class="row">
     <div class="col-lg-5">
         <div class="card mb-4">
@@ -10,7 +45,7 @@
                 <h4 class="mb-0">Create Transaction</h4>
             </div>
             <div class="card-body p-4">
-                <p class="text-muted small mb-4">Select a customer and product to initiate an atomic order transaction.</p>
+                <p class="text-muted small mb-4">Place an order first. Then choose Yes or No in Recent Order Activity. Confirmed orders can be shipped with the Ship button.</p>
                 
                 <form action="/create-order" method="POST">
                     <div class="mb-4">
@@ -42,7 +77,7 @@
                     </div>
 
                     <button type="submit" class="btn btn-primary w-100 py-3 shadow">
-                        Finalize & Commit Order
+                        Place Product Order
                     </button>
                 </form>
             </div>
@@ -63,14 +98,70 @@
                         <th>TS_RECORD</th>
                         <th>ENTITY</th>
                         <th class="text-end">STATUS</th>
+                        <th class="text-end">DECISION</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td colspan="4" class="text-center text-muted py-5">
-                            <div class="small opacity-50">READY FOR NEW INPUT</div>
-                        </td>
-                    </tr>
+                    {% if recent_orders %}
+                        {% for order in recent_orders %}
+                        <tr>
+                            <td class="fw-semibold">#{{ order.order_id }}</td>
+                            <td class="text-muted small">{{ order.order_date }}</td>
+                            <td class="small">
+                                {{ order.customer_name }}
+                                {% if order.product_name %}
+                                    <span class="text-muted">- {{ order.product_name }} x{{ order.quantity }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if order.status == 'CANCELLED' %}
+                                    <span class="badge bg-danger">DECLINED</span>
+                                {% elif order.status == 'CONFIRMED' %}
+                                    <span class="badge bg-success">CONFIRMED</span>
+                                {% elif order.status == 'SHIPPED' %}
+                                    <span class="badge bg-info text-white">SHIPPED</span>
+                                {% elif order.status == 'PENDING' %}
+                                    <span class="badge bg-primary">PLACED</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ order.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if order.status == 'PENDING' %}
+                                    <div class="decision-inline">
+                                        <form action="/update-order-status" method="POST" class="d-inline">
+                                            <input type="hidden" name="order_id" value="{{ order.order_id }}">
+                                            <input type="hidden" name="new_status" value="CONFIRMED">
+                                            <input type="hidden" name="redirect_to" value="/create-order">
+                                            <button type="submit" class="decision-btn decision-yes" title="Yes, confirm this order" aria-label="Yes, confirm this order">Yes</button>
+                                        </form>
+                                        <form action="/update-order-status" method="POST" class="d-inline">
+                                            <input type="hidden" name="order_id" value="{{ order.order_id }}">
+                                            <input type="hidden" name="new_status" value="CANCELLED">
+                                            <input type="hidden" name="redirect_to" value="/create-order">
+                                            <button type="submit" class="decision-btn decision-no" title="No, decline this order" aria-label="No, decline this order">No</button>
+                                        </form>
+                                    </div>
+                                {% elif order.status == 'CONFIRMED' %}
+                                    <form action="/update-order-status" method="POST" class="d-inline">
+                                        <input type="hidden" name="order_id" value="{{ order.order_id }}">
+                                        <input type="hidden" name="new_status" value="SHIPPED">
+                                        <input type="hidden" name="redirect_to" value="/create-order">
+                                        <button type="submit" class="btn btn-sm btn-info text-white" title="Ship this order" aria-label="Ship this order">Ship</button>
+                                    </form>
+                                {% else %}
+                                    <span class="text-muted small">Done</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-5">
+                                <div class="small opacity-50">READY FOR NEW INPUT</div>
+                            </td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
