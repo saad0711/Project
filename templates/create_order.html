@@ -3,41 +3,6 @@
 {% block title %}Place New Order | IMS Core{% endblock %}
 
 {% block content %}
-<style>
-    .decision-inline {
-        display: inline-flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 0.35rem;
-    }
-
-    .decision-btn {
-        border: none;
-        border-radius: 999px;
-        min-width: 2rem;
-        height: 2rem;
-        padding: 0 0.55rem;
-        color: #fff;
-        font-weight: 700;
-        font-size: 0.85rem;
-        line-height: 1;
-        transition: transform 0.12s ease, opacity 0.12s ease;
-    }
-
-    .decision-btn:hover {
-        transform: translateY(-1px);
-        opacity: 0.93;
-    }
-
-    .decision-yes {
-        background-color: #198754;
-    }
-
-    .decision-no {
-        background-color: #dc3545;
-    }
-</style>
-
 <div class="row">
     <div class="col-lg-5">
         <div class="card mb-4">
@@ -45,9 +10,10 @@
                 <h4 class="mb-0">Create Transaction</h4>
             </div>
             <div class="card-body p-4">
-                <p class="text-muted small mb-4">Place an order first. Then choose Yes or No in Recent Order Activity. Confirmed orders can be shipped with the Ship button.</p>
+                <p class="text-muted small mb-4">Place an order here. Decision actions are available only in Order Tracking. This section shows the current decision for each order as view-only information.</p>
                 
                 <form action="/create-order" method="POST">
+                    <input type="hidden" name="sort_by" value="{{ current_sort }}">
                     <div class="mb-4">
                         <label for="customer_id" class="form-label fw-bold small text-uppercase">Target Customer</label>
                         <select class="form-select shadow-sm" id="customer_id" name="customer_id" required>
@@ -87,8 +53,23 @@
     <div class="col-lg-7">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4 class="mb-0">Recent Order Activity</h4>
-            <a href="/manage-orders" class="btn btn-sm btn-outline-primary">View Ledger</a>
         </div>
+
+        <form method="get" action="/create-order" class="row g-2 align-items-end mb-3">
+            <div class="col-md-7">
+                <label for="sort_by" class="form-label fw-bold small text-uppercase">Sort Recent Orders</label>
+                <select id="sort_by" name="sort_by" class="form-select shadow-sm">
+                    {% for option in sort_options %}
+                        <option value="{{ option.value }}" {% if option.value == current_sort %}selected{% endif %}>
+                            {{ option.label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5">
+                <button type="submit" class="btn btn-outline-primary w-100 py-2">Apply Sort</button>
+            </div>
+        </form>
         
         <div class="table-container bg-white">
             <table class="table table-sm">
@@ -128,29 +109,15 @@
                             </td>
                             <td class="text-end">
                                 {% if order.status == 'PENDING' %}
-                                    <div class="decision-inline">
-                                        <form action="/update-order-status" method="POST" class="d-inline">
-                                            <input type="hidden" name="order_id" value="{{ order.order_id }}">
-                                            <input type="hidden" name="new_status" value="CONFIRMED">
-                                            <input type="hidden" name="redirect_to" value="/create-order">
-                                            <button type="submit" class="decision-btn decision-yes" title="Yes, confirm this order" aria-label="Yes, confirm this order">Yes</button>
-                                        </form>
-                                        <form action="/update-order-status" method="POST" class="d-inline">
-                                            <input type="hidden" name="order_id" value="{{ order.order_id }}">
-                                            <input type="hidden" name="new_status" value="CANCELLED">
-                                            <input type="hidden" name="redirect_to" value="/create-order">
-                                            <button type="submit" class="decision-btn decision-no" title="No, decline this order" aria-label="No, decline this order">No</button>
-                                        </form>
-                                    </div>
+                                    <span class="badge bg-secondary">Waiting</span>
                                 {% elif order.status == 'CONFIRMED' %}
-                                    <form action="/update-order-status" method="POST" class="d-inline">
-                                        <input type="hidden" name="order_id" value="{{ order.order_id }}">
-                                        <input type="hidden" name="new_status" value="SHIPPED">
-                                        <input type="hidden" name="redirect_to" value="/create-order">
-                                        <button type="submit" class="btn btn-sm btn-info text-white" title="Ship this order" aria-label="Ship this order">Ship</button>
-                                    </form>
+                                    <span class="badge bg-success">Yes</span>
+                                {% elif order.status == 'CANCELLED' %}
+                                    <span class="badge bg-danger">No</span>
+                                {% elif order.status == 'SHIPPED' %}
+                                    <span class="badge bg-info text-white">Shipped</span>
                                 {% else %}
-                                    <span class="text-muted small">Done</span>
+                                    <span class="badge bg-secondary">{{ order.status }}</span>
                                 {% endif %}
                             </td>
                         </tr>

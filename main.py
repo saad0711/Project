@@ -11,6 +11,33 @@ app = FastAPI(title="Inventory Management System")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
+ORDER_SORT_OPTIONS = [
+    {"value": "newest", "label": "Newest First"},
+    {"value": "oldest", "label": "Oldest First"},
+    {"value": "highest_total", "label": "Highest Total"},
+    {"value": "lowest_total", "label": "Lowest Total"},
+    {"value": "customer_az", "label": "Customer A-Z"},
+    {"value": "customer_za", "label": "Customer Z-A"},
+    {"value": "status", "label": "Status"},
+    {"value": "most_items", "label": "Most Items"},
+]
+
+ORDER_SORT_SQL = {
+    "newest": "o.order_date DESC, o.order_id DESC",
+    "oldest": "o.order_date ASC, o.order_id ASC",
+    "highest_total": "total_amount DESC, o.order_date DESC, o.order_id DESC",
+    "lowest_total": "total_amount ASC, o.order_date ASC, o.order_id ASC",
+    "customer_az": "u.full_name ASC, o.order_id ASC",
+    "customer_za": "u.full_name DESC, o.order_id DESC",
+    "status": "o.status ASC, o.order_date DESC, o.order_id DESC",
+    "most_items": "item_count DESC, o.order_date DESC, o.order_id DESC",
+}
+
+
+def _normalize_order_sort(sort_by: str) -> str:
+    normalized = (sort_by or "newest").strip().lower()
+    return normalized if normalized in ORDER_SORT_SQL else "newest"
+
 # ==========================================
 # CORE ROUTES
 # ==========================================
@@ -209,29 +236,67 @@ async def view_products(request: Request):
 
 # Feature 3: Order Creation & Cart
 @app.get("/create-order", response_class=HTMLResponse)
-async def create_order_form(request: Request):
+async def create_order_form(request: Request, sort_by: str = "newest"):
     db = database.get_db_connection()
     if db is None: return HTMLResponse("DB Connection Failed", status_code=500)
     cursor = db.cursor(dictionary=True)
+    current_sort = _normalize_order_sort(sort_by)
+    sort_clause = ORDER_SORT_SQL[current_sort]
     
     try:
         # Get customers and products for the select inputs
-        cursor.execute("SELECT user_id, full_name, email FROM USERS WHERE role = 'Customer' OR role = 'Retailer'")
+        cursor.execute("""
+            SELECT u.user_id, u.full_name, u.email
+            FROM USERS u
+            WHERE u.role IN ('Customer', 'Retailer')
+            ORDER BY u.full_name ASC
+        """)
         customers = cursor.fetchall()
         
-        cursor.execute("SELECT product_id, product_name, selling_price FROM PRODUCTS")
+        cursor.execute("""
+            SELECT p.product_id, p.product_name, p.selling_price,
+                   COALESCE(s.full_name, 'No Supplier') AS supplier_name
+            FROM PRODUCTS p
+            LEFT JOIN USERS s ON p.supplier_id = s.user_id
+            ORDER BY p.product_name ASC
+        """)
         products = cursor.fetchall()
 
         cursor.execute("""
-            SELECT o.order_id, o.order_date, o.status,
-                   u.full_name AS customer_name,
-                   p.product_name,
-                   oi.quantity
+            WITH item_summary AS (
+                SELECT
+                    oi.order_id,
+                    SUM(oi.quantity * oi.unit_price) AS total_amount,
+                    COUNT(*) AS item_count
+                FROM ORDER_ITEMS oi
+                GROUP BY oi.order_id
+            )
+            SELECT
+                o.order_id,
+                o.order_date,
+                o.status,
+                u.full_name AS customer_name,
+                (
+                    SELECT p2.product_name
+                    FROM ORDER_ITEMS oi2
+                    JOIN PRODUCTS p2 ON p2.product_id = oi2.product_id
+                    WHERE oi2.order_id = o.order_id
+                    ORDER BY oi2.item_id ASC
+                    LIMIT 1
+                ) AS product_name,
+                (
+                    SELECT oi2.quantity
+                    FROM ORDER_ITEMS oi2
+                    WHERE oi2.order_id = o.order_id
+                    ORDER BY oi2.item_id ASC
+                    LIMIT 1
+                ) AS quantity,
+                COALESCE(s.total_amount, 0) AS total_amount,
+                COALESCE(s.item_count, 0) AS item_count
             FROM ORDERS o
             JOIN USERS u ON o.requested_by = u.user_id
-            LEFT JOIN ORDER_ITEMS oi ON o.order_id = oi.order_id
-            LEFT JOIN PRODUCTS p ON oi.product_id = p.product_id
-            ORDER BY o.order_date DESC, o.order_id DESC
+            LEFT JOIN item_summary s ON s.order_id = o.order_id
+            ORDER BY {sort_clause}
             LIMIT 8
         """)
         recent_orders = cursor.fetchall()
@@ -245,7 +310,9 @@ async def create_order_form(request: Request):
     return templates.TemplateResponse(request=request, name="create_order.html", context={
         "customers": customers, 
         "products": products,
-        "recent_orders": recent_orders
+        "recent_orders": recent_orders,
+        "current_sort": current_sort,
+        "sort_options": ORDER_SORT_OPTIONS,
     })
 
 @app.post("/create-order")
@@ -253,7 +320,8 @@ async def submit_order(
     request: Request, 
     customer_id: int = Form(...), 
     product_id: int = Form(...), 
-    quantity: int = Form(...)
+    quantity: int = Form(...),
+    sort_by: str = Form("newest")
 ):
     db = database.get_db_connection()
     if db is None: return HTMLResponse("DB Connection Failed", status_code=500)
@@ -292,25 +360,40 @@ async def submit_order(
         cursor.close()
         db.close()
         
-    return RedirectResponse(url="/create-order", status_code=303)
+    current_sort = _normalize_order_sort(sort_by)
+    return RedirectResponse(url=f"/create-order?sort_by={quote_plus(current_sort)}", status_code=303)
 
 # Feature 4: Order Approval Workflow
 @app.get("/manage-orders", response_class=HTMLResponse)
-async def manage_orders(request: Request):
+async def manage_orders(request: Request, sort_by: str = "newest"):
     db = database.get_db_connection()
     if db is None: return HTMLResponse("DB Connection Failed", status_code=500)
     cursor = db.cursor(dictionary=True)
+    current_sort = _normalize_order_sort(sort_by)
+    sort_clause = ORDER_SORT_SQL[current_sort]
     
     try:
         sql = """
-            SELECT o.order_id, o.requested_by as customer_id, u.full_name as customer_name, 
-                   o.order_date, o.status,
-                   COALESCE(SUM(oi.quantity * oi.unit_price), 0) as total_amount
+            WITH order_summary AS (
+                SELECT
+                    oi.order_id,
+                    SUM(oi.quantity * oi.unit_price) AS total_amount,
+                    COUNT(*) AS item_count
+                FROM ORDER_ITEMS oi
+                GROUP BY oi.order_id
+            )
+            SELECT
+                o.order_id,
+                o.requested_by AS customer_id,
+                u.full_name AS customer_name,
+                o.order_date,
+                o.status,
+                COALESCE(s.total_amount, 0) AS total_amount,
+                COALESCE(s.item_count, 0) AS item_count
             FROM ORDERS o
             JOIN USERS u ON o.requested_by = u.user_id
-            LEFT JOIN ORDER_ITEMS oi ON o.order_id = oi.order_id
-            GROUP BY o.order_id
-            ORDER BY o.order_date DESC
+            LEFT JOIN order_summary s ON s.order_id = o.order_id
+            ORDER BY {sort_clause}
         """
         cursor.execute(sql)
         orders = cursor.fetchall()
@@ -321,13 +404,18 @@ async def manage_orders(request: Request):
         cursor.close()
         db.close()
         
-    return templates.TemplateResponse(request=request, name="manage_orders.html", context={"orders": orders})
+    return templates.TemplateResponse(request=request, name="manage_orders.html", context={
+        "orders": orders,
+        "current_sort": current_sort,
+        "sort_options": ORDER_SORT_OPTIONS,
+    })
 
 @app.post("/update-order-status")
 async def update_order_status(
     order_id: int = Form(...),
     new_status: str = Form(...),
-    redirect_to: str = Form("/manage-orders")
+    redirect_to: str = Form("/manage-orders"),
+    sort_by: str = Form("newest")
 ):
     db = database.get_db_connection()
     if db is None: return HTMLResponse("DB Connection Failed", status_code=500)
@@ -387,7 +475,8 @@ async def update_order_status(
     
     allowed_redirects = {"/manage-orders", "/create-order"}
     target = redirect_to if redirect_to in allowed_redirects else "/manage-orders"
-    return RedirectResponse(url=target, status_code=303)
+    current_sort = _normalize_order_sort(sort_by)
+    return RedirectResponse(url=f"{target}?sort_by={quote_plus(current_sort)}", status_code=303)
 
 # ==========================================
 # TEAM MEMBER 3: INVENTORY & ANALYTICS

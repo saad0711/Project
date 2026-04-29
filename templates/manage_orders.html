@@ -48,7 +48,19 @@
         <p class="text-muted">Lifecycle tracking with one-click approve or decline controls.</p>
     </div>
     <div class="col-lg-6 text-lg-end">
-        <a href="/create-order" class="btn btn-primary">+ New Transaction</a>
+        <form method="get" action="/manage-orders" class="d-inline-flex gap-2 align-items-end">
+            <div class="text-start">
+                <label for="sort_by" class="form-label fw-bold small text-uppercase mb-1">Sort Orders</label>
+                <select id="sort_by" name="sort_by" class="form-select form-select-sm shadow-sm">
+                    {% for option in sort_options %}
+                        <option value="{{ option.value }}" {% if option.value == current_sort %}selected{% endif %}>
+                            {{ option.label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-outline-primary btn-sm px-3 py-2">Apply Sort</button>
+        </form>
     </div>
 </div>
 
@@ -97,6 +109,7 @@
                                     <input type="hidden" name="order_id" value="{{ o.order_id }}">
                                     <input type="hidden" name="new_status" value="CONFIRMED">
                                     <input type="hidden" name="redirect_to" value="/manage-orders">
+                                    <input type="hidden" name="sort_by" value="{{ current_sort }}">
                                     <button type="submit" class="action-btn action-btn-approve" title="Approve order" aria-label="Approve order">
                                         &check;
                                     </button>
@@ -105,6 +118,7 @@
                                     <input type="hidden" name="order_id" value="{{ o.order_id }}">
                                     <input type="hidden" name="new_status" value="CANCELLED">
                                     <input type="hidden" name="redirect_to" value="/manage-orders">
+                                    <input type="hidden" name="sort_by" value="{{ current_sort }}">
                                     <button type="submit" class="action-btn action-btn-decline" title="Decline order" aria-label="Decline order">
                                         &times;
                                     </button>
@@ -115,6 +129,7 @@
                                 <input type="hidden" name="order_id" value="{{ o.order_id }}">
                                 <input type="hidden" name="new_status" value="SHIPPED">
                                 <input type="hidden" name="redirect_to" value="/manage-orders">
+                                <input type="hidden" name="sort_by" value="{{ current_sort }}">
                                 <button type="submit" class="btn btn-sm btn-info text-white" title="Ship order" aria-label="Ship order">Ship</button>
                             </form>
                         {% else %}
