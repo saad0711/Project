@@ -88,9 +88,18 @@ async def root(request: Request):
     user = get_session_user(request)
     if user:
         if user["role"] == "Admin":
-            return RedirectResponse(url="/dashboard", status_code=303)
+            return RedirectResponse(url="/home", status_code=303)
         return RedirectResponse(url="/user-dashboard", status_code=303)
     return RedirectResponse(url="/login", status_code=303)
+
+
+@app.get("/home", response_class=HTMLResponse)
+async def admin_home(request: Request):
+    check = require_admin(request)
+    if check:
+        return check
+    user = get_session_user(request)
+    return templates.TemplateResponse(request=request, name="admin_home.html", context={"user": user})
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -134,9 +143,9 @@ async def login_submit(request: Request):
         request.session["email"] = user["email"]
         request.session["role"] = user["role"]
 
-        ## send to the right dashboard based on role
+        ## send to the right page based on role
         if user["role"] == "Admin":
-            return RedirectResponse(url="/dashboard", status_code=303)
+            return RedirectResponse(url="/home", status_code=303)
         return RedirectResponse(url="/user-dashboard", status_code=303)
 
     except Exception as e:
@@ -215,12 +224,12 @@ async def user_dashboard(request: Request):
 
     cursor = conn.cursor()
     try:
-        ## get this users orders
+        ## get this users orders (only non-archived ones)
         cursor.execute(
             "SELECT o.order_id, o.order_date, o.status, "
             "COALESCE((SELECT SUM(oi.quantity * oi.unit_price) "
             " FROM ORDER_ITEMS oi WHERE oi.order_id = o.order_id), 0) AS total_amount "
-            "FROM ORDERS o WHERE o.requested_by = ? "
+            "FROM ORDERS o WHERE o.requested_by = ? AND o.archived = 0 "
             "ORDER BY o.order_date DESC LIMIT 10",
             (user["user_id"],)
         )
@@ -247,6 +256,17 @@ async def user_dashboard(request: Request):
 
 # ---------- USERS (admin only) ----------
 
+## allowed sort columns for users page
+USER_SORT_COLS = {
+    "name": "u.full_name",
+    "email": "u.email",
+    "role": "u.role",
+    "company": "u.company_name",
+    "status": "u.status",
+    "date": "u.created_at",
+    "orders": "order_count",
+}
+
 @app.get("/users", response_class=HTMLResponse)
 async def view_users(request: Request):
     check = require_admin(request)
@@ -255,8 +275,19 @@ async def view_users(request: Request):
 
     user = get_session_user(request)
     q = request.query_params.get("q", "")
+    sort_by = request.query_params.get("sort_by", "date")
+    sort_dir = request.query_params.get("sort_dir", "desc")
     status = request.query_params.get("status")
     message = request.query_params.get("message")
+
+    ## make sure the sort values are safe
+    if sort_by not in USER_SORT_COLS:
+        sort_by = "date"
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = "desc"
+
+    sort_column = USER_SORT_COLS[sort_by]
+    order_clause = f"{sort_column} {sort_dir.upper()}"
 
     conn = database.get_connection()
     if conn is None:
@@ -264,6 +295,7 @@ async def view_users(request: Request):
             "users": [], "search_query": q, "user": user,
             "status": "error", "message": "Database connection failed.",
             "total_users": 0, "active_users": 0,
+            "sort_by": sort_by, "sort_dir": sort_dir,
         })
 
     cursor = conn.cursor()
@@ -272,19 +304,24 @@ async def view_users(request: Request):
     active_users = 0
 
     try:
+        ## uses a nested query to count how many orders each user has
+        ## LEFT JOIN would also work but a subquery is easier to read here
         if q.strip():
             like = f"%{q.strip()}%"
             cursor.execute(
-                "SELECT user_id, full_name, email, role, company_name, status, created_at "
-                "FROM USERS "
-                "WHERE full_name LIKE ? OR email LIKE ? OR role LIKE ? OR company_name LIKE ? "
-                "ORDER BY created_at DESC",
+                "SELECT u.user_id, u.full_name, u.email, u.role, u.company_name, u.status, u.created_at, "
+                "(SELECT COUNT(*) FROM ORDERS o WHERE o.requested_by = u.user_id AND o.archived = 0) AS order_count "
+                "FROM USERS u "
+                "WHERE u.full_name LIKE ? OR u.email LIKE ? OR u.role LIKE ? OR u.company_name LIKE ? "
+                f"ORDER BY {order_clause}",
                 (like, like, like, like)
             )
         else:
             cursor.execute(
-                "SELECT user_id, full_name, email, role, company_name, status, created_at "
-                "FROM USERS ORDER BY created_at DESC"
+                "SELECT u.user_id, u.full_name, u.email, u.role, u.company_name, u.status, u.created_at, "
+                "(SELECT COUNT(*) FROM ORDERS o WHERE o.requested_by = u.user_id AND o.archived = 0) AS order_count "
+                "FROM USERS u "
+                f"ORDER BY {order_clause}"
             )
 
         users = rows_to_dicts(cursor.fetchall())
@@ -306,6 +343,7 @@ async def view_users(request: Request):
         "users": users, "search_query": q, "user": user,
         "status": status, "message": message,
         "total_users": total_users, "active_users": active_users,
+        "sort_by": sort_by, "sort_dir": sort_dir,
     })
 
 
@@ -404,38 +442,200 @@ async def delete_user(request: Request):
     return RedirectResponse(url=redirect_url, status_code=303)
 
 
-# ---------- PRODUCTS ----------
+# ---------- SUPPLIERS ----------
 
-@app.get("/products", response_class=HTMLResponse)
-async def view_products(request: Request):
+## allowed sort columns for suppliers page
+SUPPLIER_SORT_COLS = {
+    "name": "u.full_name",
+    "company": "u.company_name",
+    "category": "s.supply_category",
+    "rating": "s.rating",
+    "products": "product_count",
+    "revenue": "total_revenue",
+    "orders": "order_count",
+}
+
+@app.get("/suppliers", response_class=HTMLResponse)
+async def view_suppliers(request: Request):
     check = require_admin(request)
     if check:
         return check
 
     user = get_session_user(request)
+    sort_by = request.query_params.get("sort_by", "name")
+    sort_dir = request.query_params.get("sort_dir", "asc")
+    status = request.query_params.get("status")
+    message = request.query_params.get("message")
+
+    if sort_by not in SUPPLIER_SORT_COLS:
+        sort_by = "name"
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = "asc"
+
+    sort_column = SUPPLIER_SORT_COLS[sort_by]
+    order_clause = f"{sort_column} {sort_dir.upper()}"
+
     conn = database.get_connection()
     if conn is None:
         return HTMLResponse("DB Connection Failed", status_code=500)
 
     cursor = conn.cursor()
     try:
+        ## this is the big query - joins SUPPLIERS to USERS to get the name/email
+        ## then uses nested subqueries to pull in data from PRODUCTS and ORDER_ITEMS
+        ##
+        ## subquery 1: counts how many products this supplier has
+        ## subquery 2: sums up all revenue from orders that contain this suppliers products
+        ## subquery 3: counts how many distinct orders have items from this supplier
         cursor.execute(
-            "SELECT p.*, u.full_name AS supplier_name "
-            "FROM PRODUCTS p "
-            "LEFT JOIN USERS u ON p.supplier_id = u.user_id "
-            "ORDER BY p.product_id ASC"
+            "SELECT s.supplier_id, s.user_id, s.contact_phone, s.address, "
+            "s.rating, s.supply_category, s.created_at, "
+            "u.full_name, u.email, u.company_name, "
+            "(SELECT COUNT(*) FROM PRODUCTS p WHERE p.supplier_id = s.supplier_id) AS product_count, "
+            "(SELECT COALESCE(SUM(oi.quantity * oi.unit_price), 0) "
+            " FROM ORDER_ITEMS oi "
+            " JOIN PRODUCTS p ON oi.product_id = p.product_id "
+            " JOIN ORDERS ord ON oi.order_id = ord.order_id "
+            " WHERE p.supplier_id = s.supplier_id AND ord.archived = 0) AS total_revenue, "
+            "(SELECT COUNT(DISTINCT oi.order_id) "
+            " FROM ORDER_ITEMS oi "
+            " JOIN PRODUCTS p ON oi.product_id = p.product_id "
+            " JOIN ORDERS ord ON oi.order_id = ord.order_id "
+            " WHERE p.supplier_id = s.supplier_id AND ord.archived = 0) AS order_count "
+            "FROM SUPPLIERS s "
+            "JOIN USERS u ON s.user_id = u.user_id "
+            f"ORDER BY {order_clause}"
         )
-        products = rows_to_dicts(cursor.fetchall())
+        suppliers = rows_to_dicts(cursor.fetchall())
+
+        ## also get users who are marked as Supplier role but dont have a supplier record yet
+        ## so the admin can add them as suppliers
+        cursor.execute(
+            "SELECT u.user_id, u.full_name, u.email FROM USERS u "
+            "WHERE u.role = 'Supplier' "
+            "AND u.user_id NOT IN (SELECT s.user_id FROM SUPPLIERS s) "
+            "ORDER BY u.full_name ASC"
+        )
+        available_users = rows_to_dicts(cursor.fetchall())
+
     except Exception as e:
-        print(f"Error fetching products: {e}")
-        products = []
+        print(f"Error fetching suppliers: {e}")
+        suppliers = []
+        available_users = []
     finally:
         cursor.close()
         conn.close()
 
-    return templates.TemplateResponse(request=request, name="products.html", context={
-        "products": products, "user": user,
+    return templates.TemplateResponse(request=request, name="suppliers.html", context={
+        "suppliers": suppliers, "available_users": available_users, "user": user,
+        "sort_by": sort_by, "sort_dir": sort_dir,
+        "status": status, "message": message,
     })
+
+
+@app.post("/suppliers/add")
+async def add_supplier(request: Request):
+    check = require_admin(request)
+    if check:
+        return check
+
+    form = await request.form()
+    user_id = form.get("user_id")
+    contact_phone = form.get("contact_phone", "").strip()
+    address = form.get("address", "").strip()
+    rating = form.get("rating", "3").strip()
+    supply_category = form.get("supply_category", "").strip()
+
+    if not user_id:
+        msg = quote_plus("Please select a user to register as supplier.")
+        return RedirectResponse(url=f"/suppliers?status=error&message={msg}", status_code=303)
+
+    conn = database.get_connection()
+    if conn is None:
+        msg = quote_plus("Database connection failed.")
+        return RedirectResponse(url=f"/suppliers?status=error&message={msg}", status_code=303)
+
+    cursor = conn.cursor()
+    redirect_url = "/suppliers?status=success&message=Supplier+added+successfully"
+
+    try:
+        ## check if this user is already a supplier
+        cursor.execute("SELECT supplier_id FROM SUPPLIERS WHERE user_id = ?", (user_id,))
+        if cursor.fetchone():
+            msg = quote_plus("This user is already registered as a supplier.")
+            redirect_url = f"/suppliers?status=warning&message={msg}"
+        else:
+            cursor.execute(
+                "INSERT INTO SUPPLIERS (user_id, contact_phone, address, rating, supply_category) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (user_id, contact_phone or None, address or None, rating, supply_category or None)
+            )
+            conn.commit()
+    except Exception as e:
+        print(f"Error adding supplier: {e}")
+        conn.rollback()
+        msg = quote_plus("Could not add supplier.")
+        redirect_url = f"/suppliers?status=error&message={msg}"
+    finally:
+        cursor.close()
+        conn.close()
+
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+
+@app.post("/suppliers/delete")
+async def delete_supplier(request: Request):
+    check = require_admin(request)
+    if check:
+        return check
+
+    form = await request.form()
+    supplier_id = form.get("supplier_id")
+
+    conn = database.get_connection()
+    if conn is None:
+        msg = quote_plus("Database connection failed.")
+        return RedirectResponse(url=f"/suppliers?status=error&message={msg}", status_code=303)
+
+    cursor = conn.cursor()
+    redirect_url = "/suppliers?status=success&message=Supplier+removed+successfully"
+
+    try:
+        ## check if this supplier has pending orders
+        cursor.execute(
+            "SELECT COUNT(*) as pending_count "
+            "FROM ORDER_ITEMS oi "
+            "JOIN ORDERS o ON oi.order_id = o.order_id "
+            "JOIN PRODUCTS p ON oi.product_id = p.product_id "
+            "WHERE p.supplier_id = ? AND o.status = 'PENDING' AND o.archived = 0",
+            (supplier_id,)
+        )
+        pending = cursor.fetchone()
+
+        if pending and pending["pending_count"] > 0:
+            msg = quote_plus("Cannot remove supplier. They have active pending orders.")
+            redirect_url = f"/suppliers?status=warning&message={msg}"
+            conn.rollback()
+            return RedirectResponse(url=redirect_url, status_code=303)
+
+        cursor.execute("DELETE FROM SUPPLIERS WHERE supplier_id = ?", (supplier_id,))
+        if cursor.rowcount <= 0:
+            msg = quote_plus("No matching supplier found.")
+            redirect_url = f"/suppliers?status=warning&message={msg}"
+            conn.rollback()
+        else:
+            conn.commit()
+    except Exception as e:
+        print(f"Error deleting supplier: {e}")
+        conn.rollback()
+        msg = quote_plus("Could not remove supplier.")
+        redirect_url = f"/suppliers?status=error&message={msg}"
+    finally:
+        cursor.close()
+        conn.close()
+
+    return RedirectResponse(url=redirect_url, status_code=303)
+
 
 
 # ---------- CREATE ORDER ----------
@@ -467,9 +667,10 @@ async def create_order_form(request: Request):
 
         cursor.execute(
             "SELECT p.product_id, p.product_name, p.selling_price, "
-            "COALESCE(s.full_name, 'No Supplier') AS supplier_name "
+            "COALESCE(u.full_name, 'No Supplier') AS supplier_name "
             "FROM PRODUCTS p "
-            "LEFT JOIN USERS s ON p.supplier_id = s.user_id "
+            "LEFT JOIN SUPPLIERS s ON p.supplier_id = s.supplier_id "
+            "LEFT JOIN USERS u ON s.user_id = u.user_id "
             "ORDER BY p.product_name ASC"
         )
         products = rows_to_dicts(cursor.fetchall())
@@ -488,6 +689,7 @@ async def create_order_form(request: Request):
             " WHERE oi2.order_id = o.order_id), 0) AS item_count "
             "FROM ORDERS o "
             "JOIN USERS u ON o.requested_by = u.user_id "
+            "WHERE o.archived = 0 "
             f"ORDER BY {sort_clause} "
             "LIMIT 8"
         )
@@ -584,6 +786,7 @@ async def manage_orders(request: Request):
             " WHERE oi.order_id = o.order_id), 0) AS item_count "
             "FROM ORDERS o "
             "JOIN USERS u ON o.requested_by = u.user_id "
+            "WHERE o.archived = 0 "
             f"ORDER BY {sort_clause}"
         )
         orders = rows_to_dicts(cursor.fetchall())
@@ -653,6 +856,40 @@ async def update_order_status(request: Request):
     target = redirect_to if redirect_to in allowed else "/manage-orders"
     current_sort = clean_sort(sort_by)
     return RedirectResponse(url=f"{target}?sort_by={quote_plus(current_sort)}", status_code=303)
+
+
+@app.post("/orders/archive")
+async def archive_order(request: Request):
+    check = require_admin(request)
+    if check:
+        return check
+
+    form = await request.form()
+    order_id = form.get("order_id")
+    sort_by = form.get("sort_by", "newest")
+
+    conn = database.get_connection()
+    if conn is None:
+        return HTMLResponse("DB Connection Failed", status_code=500)
+
+    cursor = conn.cursor()
+    try:
+        ## only archive orders that are done (delivered or cancelled)
+        cursor.execute(
+            "UPDATE ORDERS SET archived = 1 "
+            "WHERE order_id = ? AND status IN ('DELIVERED', 'CANCELLED')",
+            (order_id,)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"Error archiving order: {e}")
+        conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
+
+    current_sort = clean_sort(sort_by)
+    return RedirectResponse(url=f"/manage-orders?sort_by={quote_plus(current_sort)}", status_code=303)
 
 
 # ---------- INVENTORY ----------
@@ -742,11 +979,11 @@ async def get_dashboard(request: Request):
             "SELECT SUM(oi.quantity * oi.unit_price) as revenue "
             "FROM ORDER_ITEMS oi "
             "JOIN ORDERS o ON oi.order_id = o.order_id "
-            "WHERE o.status = 'DELIVERED'"
+            "WHERE o.status = 'DELIVERED' AND o.archived = 0"
         )
         total_revenue = cursor.fetchone()["revenue"] or 0
 
-        cursor.execute("SELECT COUNT(*) as total FROM ORDERS WHERE status = 'PENDING'")
+        cursor.execute("SELECT COUNT(*) as total FROM ORDERS WHERE status = 'PENDING' AND archived = 0")
         pending_orders = cursor.fetchone()["total"]
 
         cursor.execute("SELECT COUNT(*) as total FROM INVENTORY WHERE current_stock < min_threshold")
@@ -756,6 +993,8 @@ async def get_dashboard(request: Request):
             "SELECT p.product_name, SUM(oi.quantity) as total_sold "
             "FROM ORDER_ITEMS oi "
             "JOIN PRODUCTS p ON oi.product_id = p.product_id "
+            "JOIN ORDERS o ON oi.order_id = o.order_id "
+            "WHERE o.archived = 0 "
             "GROUP BY p.product_id "
             "ORDER BY total_sold DESC LIMIT 5"
         )

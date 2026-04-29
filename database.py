@@ -19,6 +19,17 @@ CREATE TABLE IF NOT EXISTS USERS (
     created_at TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS SUPPLIERS (
+    supplier_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    contact_phone TEXT,
+    address TEXT,
+    rating INTEGER DEFAULT 3,
+    supply_category TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES USERS(user_id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS PRODUCTS (
     product_id INTEGER PRIMARY KEY AUTOINCREMENT,
     product_name TEXT NOT NULL,
@@ -26,7 +37,7 @@ CREATE TABLE IF NOT EXISTS PRODUCTS (
     unit_cost REAL NOT NULL,
     selling_price REAL NOT NULL,
     supplier_id INTEGER,
-    FOREIGN KEY (supplier_id) REFERENCES USERS(user_id) ON DELETE SET NULL
+    FOREIGN KEY (supplier_id) REFERENCES SUPPLIERS(supplier_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS INVENTORY (
@@ -43,6 +54,7 @@ CREATE TABLE IF NOT EXISTS ORDERS (
     order_date TEXT DEFAULT (datetime('now')),
     status TEXT DEFAULT 'PENDING',
     order_type TEXT,
+    archived INTEGER DEFAULT 0,
     FOREIGN KEY (requested_by) REFERENCES USERS(user_id)
 );
 
@@ -64,7 +76,6 @@ def hash_password(password):
 
 
 ## some starter data so the app isnt empty when you first run it
-## passwords are hashed versions of simple defaults
 def get_seed_data():
     admin_pass = hash_password("admin123")
     user_pass = hash_password("user123")
@@ -78,12 +89,16 @@ INSERT OR IGNORE INTO USERS (user_id, full_name, email, password, role, company_
 (4, 'Jane Doe', 'jane@retail.com', '{user_pass}', 'User', "Jane's Boutique", 'Active'),
 (5, 'John Smith', 'john@gmail.com', '{user_pass}', 'User', NULL, 'Active');
 
+INSERT OR IGNORE INTO SUPPLIERS (supplier_id, user_id, contact_phone, address, rating, supply_category) VALUES
+(1, 2, '+1-555-0101', '45 Industrial Ave, San Jose, CA', 5, 'Electronics'),
+(2, 3, '+1-555-0202', '12 Commerce St, Austin, TX', 4, 'Peripherals');
+
 INSERT OR IGNORE INTO PRODUCTS (product_id, product_name, category, unit_cost, selling_price, supplier_id) VALUES
-(1, 'Quantum Processor V1', 'Electronics', 150.00, 299.99, 2),
-(2, 'Cybernetic Lens', 'Optics', 45.50, 89.00, 2),
-(3, 'Aero-Draft Keyboard', 'Peripherals', 30.00, 75.00, 3),
-(4, 'Bio-Sync Smartwatch', 'Wearables', 80.00, 159.99, 3),
-(5, 'Titanium Chassis M1', 'Hardware', 200.00, 450.00, 2);
+(1, 'Quantum Processor V1', 'Electronics', 150.00, 299.99, 1),
+(2, 'Cybernetic Lens', 'Optics', 45.50, 89.00, 1),
+(3, 'Aero-Draft Keyboard', 'Peripherals', 30.00, 75.00, 2),
+(4, 'Bio-Sync Smartwatch', 'Wearables', 80.00, 159.99, 2),
+(5, 'Titanium Chassis M1', 'Hardware', 200.00, 450.00, 1);
 
 INSERT OR IGNORE INTO INVENTORY (product_id, current_stock, min_threshold) VALUES
 (1, 15, 5),

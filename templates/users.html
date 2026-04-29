@@ -3,11 +3,18 @@
 {% block title %}Users | IMS{% endblock %}
 
 {% block content %}
+
+{% macro sort_link(col, label) %}
+{% set next_dir = 'asc' if (sort_by == col and sort_dir == 'desc') else 'desc' if sort_by == col else 'asc' %}
+{% set arrow = ' &#9650;' if (sort_by == col and sort_dir == 'asc') else ' &#9660;' if (sort_by == col and sort_dir == 'desc') else '' %}
+<a href="/users?sort_by={{ col }}&sort_dir={{ next_dir }}{% if search_query %}&q={{ search_query }}{% endif %}" class="text-decoration-none text-muted">{{ label }}{{ arrow | safe }}</a>
+{% endmacro %}
+
 <section class="users-shell">
     <div class="users-hero mb-4">
         <div>
             <h1 class="users-title mb-2">Users</h1>
-            <p class="users-subtitle mb-0">Add, search or remove users from the system.</p>
+            <p class="users-subtitle mb-0">{{ total_users }} total users, {{ active_users }} active</p>
         </div>
         <div class="users-actions">
             <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
@@ -27,13 +34,15 @@
     <div class="card mb-4 border-0 shadow-soft search-card">
         <div class="card-body p-2">
             <form action="/users" method="get" class="search-flex">
+                <input type="hidden" name="sort_by" value="{{ sort_by }}">
+                <input type="hidden" name="sort_dir" value="{{ sort_dir }}">
                 <div class="input-group">
                     <input type="text" name="q" value="{{ search_query }}" class="form-control border-0 bg-transparent" placeholder="Search by name, email, role or company...">
                 </div>
                 <div class="search-btns">
                     <button type="submit" class="btn btn-primary px-4">Search</button>
                     {% if search_query %}
-                    <a href="/users" class="btn btn-light px-3">Clear</a>
+                    <a href="/users?sort_by={{ sort_by }}&sort_dir={{ sort_dir }}" class="btn btn-light px-3">Clear</a>
                     {% endif %}
                 </div>
             </form>
@@ -47,38 +56,48 @@
                 <table class="table table-hover align-middle mb-0 custom-users-table">
                     <thead>
                         <tr>
-                            <th class="ps-4">User</th>
-                            <th>Role</th>
-                            <th>Company</th>
-                            <th>Email</th>
-                            <th>Status</th>
+                            <th class="ps-4">{{ sort_link("name", "User") }}</th>
+                            <th>{{ sort_link("role", "Role") }}</th>
+                            <th>{{ sort_link("company", "Company") }}</th>
+                            <th>{{ sort_link("email", "Email") }}</th>
+                            <th>{{ sort_link("orders", "Orders") }}</th>
+                            <th>{{ sort_link("status", "Status") }}</th>
+                            <th>{{ sort_link("date", "Joined") }}</th>
                             <th class="text-end pe-4">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% if users %}
-                        {% for user in users %}
+                        {% for u in users %}
                         <tr>
                             <td class="ps-4">
                                 <div class="user-identity-advanced">
-                                    <span class="user-avatar-premium">{{ (user.full_name or '?')[0] | upper }}</span>
+                                    <span class="user-avatar-premium">{{ (u.full_name or '?')[0] | upper }}</span>
                                     <div class="user-info-text">
-                                        <div class="user-name-cell">{{ user.full_name }}</div>
-                                        <div class="user-id-badge">ID-{{ user.user_id }}</div>
+                                        <div class="user-name-cell">{{ u.full_name }}</div>
+                                        <div class="user-id-badge">ID-{{ u.user_id }}</div>
                                     </div>
                                 </div>
                             </td>
-                            <td><span class="badge-role-modern">{{ user.role }}</span></td>
-                            <td><span class="text-secondary">{{ user.company_name or 'N/A' }}</span></td>
-                            <td><span class="email-link">{{ user.email }}</span></td>
+                            <td><span class="badge-role-modern">{{ u.role }}</span></td>
+                            <td><span class="text-secondary">{{ u.company_name or 'N/A' }}</span></td>
+                            <td><span class="email-link">{{ u.email }}</span></td>
                             <td>
-                                <div class="status-indicator-pill {% if user.status and user.status|lower == 'active' %}status-active{% else %}status-inactive{% endif %}">
-                                    {{ user.status or 'Unknown' }}
+                                {% if u.order_count and u.order_count > 0 %}
+                                    <span class="badge bg-primary bg-opacity-10 text-primary">{{ u.order_count }}</span>
+                                {% else %}
+                                    <span class="text-muted small">0</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="status-indicator-pill {% if u.status and u.status|lower == 'active' %}status-active{% else %}status-inactive{% endif %}">
+                                    {{ u.status or 'Unknown' }}
                                 </div>
                             </td>
+                            <td class="text-muted small">{{ u.created_at }}</td>
                             <td class="text-end pe-4">
-                                <form action="/users/delete" method="post" onsubmit="return confirm('Remove {{ user.full_name }}?');" class="d-inline">
-                                    <input type="hidden" name="user_id" value="{{ user.user_id }}">
+                                <form action="/users/delete" method="post" onsubmit="return confirm('Remove {{ u.full_name }}?');" class="d-inline">
+                                    <input type="hidden" name="user_id" value="{{ u.user_id }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove User">Delete</button>
                                 </form>
                             </td>
@@ -86,7 +105,7 @@
                         {% endfor %}
                         {% else %}
                         <tr>
-                            <td colspan="6" class="text-center py-5">
+                            <td colspan="8" class="text-center py-5">
                                 <p class="text-muted">No users found.</p>
                                 <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">Add First User</button>
                             </td>
@@ -118,13 +137,16 @@
                         <label class="form-label small fw-bold">Email</label>
                         <input type="email" name="email" class="form-control premium-input" placeholder="name@company.com" required>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Password</label>
+                        <input type="password" name="password" class="form-control premium-input" placeholder="Set a password" value="defaultpass">
+                    </div>
                     <div class="row g-3 mb-3">
                         <div class="col-6">
                             <label class="form-label small fw-bold">Role</label>
                             <select name="role" class="form-select premium-select" required>
+                                <option value="User">User</option>
                                 <option value="Supplier">Supplier</option>
-                                <option value="Retailer">Retailer</option>
-                                <option value="Customer">Customer</option>
                                 <option value="Admin">Admin</option>
                             </select>
                         </div>

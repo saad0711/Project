@@ -27,8 +27,9 @@
             <div class="collapse navbar-collapse" id="navNav">
                 <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
                     {% if user and user.role == 'Admin' %}
+                    <li class="nav-item"><a class="nav-link" href="/home">Home</a></li>
                     <li class="nav-item"><a class="nav-link" href="/users">Users</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/products">Products</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/suppliers">Suppliers</a></li>
                     <li class="nav-item"><a class="nav-link" href="/create-order">New Order</a></li>
                     <li class="nav-item"><a class="nav-link" href="/manage-orders">Manage</a></li>
                     <li class="nav-item"><a class="nav-link" href="/inventory">Inventory</a></li>

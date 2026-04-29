@@ -117,8 +117,20 @@
                                 <input type="hidden" name="sort_by" value="{{ current_sort }}">
                                 <button type="submit" class="btn btn-sm btn-info text-white">Ship</button>
                             </form>
+                        {% elif o.status == 'SHIPPED' %}
+                            <form action="/update-order-status" method="POST" class="d-inline">
+                                <input type="hidden" name="order_id" value="{{ o.order_id }}">
+                                <input type="hidden" name="new_status" value="DELIVERED">
+                                <input type="hidden" name="redirect_to" value="/manage-orders">
+                                <input type="hidden" name="sort_by" value="{{ current_sort }}">
+                                <button type="submit" class="btn btn-sm btn-success text-white">Deliver</button>
+                            </form>
                         {% else %}
-                            <span class="text-muted small">Done</span>
+                            <form action="/orders/archive" method="POST" class="d-inline" onsubmit="return confirm('Archive order #{{ o.order_id }}? It will be hidden from all active views.');">
+                                <input type="hidden" name="order_id" value="{{ o.order_id }}">
+                                <input type="hidden" name="sort_by" value="{{ current_sort }}">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">Archive</button>
+                            </form>
                         {% endif %}
                     </td>
                 </tr>

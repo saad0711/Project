@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Home | IMS{% endblock %}
+
+{% block content %}
+<div class="hero-section p-5 mb-5 rounded-4 shadow-lg text-center" style="background: linear-gradient(135deg, #2d5a4c 0%, #1a2e26 100%); color: white;">
+    <h1 class="display-4 fw-bold mb-3">Welcome back, {{ user.full_name }}</h1>
+    <p class="lead mb-4 opacity-75">Manage your users, products, orders and stock levels all in one place.</p>
+    <div class="row g-4 mt-4">
+        <div class="col-md-4">
+            <div class="p-4 rounded-4 bg-white bg-opacity-10 backdrop-blur">
+                <h3>Core</h3>
+                <p class="small opacity-50">Users and Suppliers</p>
+                <div class="d-grid gap-2">
+                    <a href="/users" class="btn btn-light btn-sm">Manage Users</a>
+                    <a href="/suppliers" class="btn btn-outline-light btn-sm">Suppliers</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-4 rounded-4 bg-white bg-opacity-10 backdrop-blur">
+                <h3>Orders</h3>
+                <p class="small opacity-50">Create and Track</p>
+                <div class="d-grid gap-2">
+                    <a href="/create-order" class="btn btn-light btn-sm">Place Order</a>
+                    <a href="/manage-orders" class="btn btn-outline-light btn-sm">Order Tracking</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-4 rounded-4 bg-white bg-opacity-10 backdrop-blur">
+                <h3>Stock</h3>
+                <p class="small opacity-50">Inventory and Stats</p>
+                <div class="d-grid gap-2">
+                    <a href="/inventory" class="btn btn-light btn-sm">Inventory</a>
+                    <a href="/dashboard" class="btn btn-outline-light btn-sm">Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
