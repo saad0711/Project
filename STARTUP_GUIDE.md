@@ -1,13 +1,13 @@
-# 🌿 IMS CORE — Team Startup Guide
+# IMS - Team Setup Guide
 
-> **CSE 370 Group Project** · Inventory Management System  
+> CSE 370 Group Project - Inventory Management System
 > Get the project running on your machine in under 5 minutes.
 
 ---
 
-## ✅ Prerequisites (all platforms)
+## Prerequisites
 
-Before you start, make sure you have **Python 3.10 or higher** installed. To check, open a terminal and run:
+Make sure you have **Python 3.10+** installed:
 
 ```bash
 python --version
@@ -17,13 +17,13 @@ or
 python3 --version
 ```
 
-If Python is not installed, download it from [python.org/downloads](https://www.python.org/downloads/).
+If you dont have it, get it from [python.org/downloads](https://www.python.org/downloads/).
 
-> **Note:** You do **NOT** need MySQL installed. The system automatically creates a local database file (`inventory.db`) the first time it runs.
+> You do NOT need MySQL. The app automatically creates a local `inventory.db` file the first time it runs.
 
 ---
 
-## 📥 Step 1 — Clone the Repository
+## Step 1 - Clone the Repo
 
 ```bash
 git clone https://github.com/AhnafZ778/CSE370.git
@@ -32,56 +32,25 @@ cd CSE370
 
 ---
 
-## 🖥️ Step 2 — Set Up Virtual Environment
+## Step 2 - Set Up Virtual Environment
 
-Choose the instructions for your operating system below.
-
----
-
-### 🐧 Linux
+### Linux / macOS
 
 ```bash
-# Create the virtual environment
 python3 -m venv venv
-
-# Activate it
 source venv/bin/activate
-
-# Install all dependencies
 pip install -r requirements.txt
 ```
 
----
-
-### 🍎 macOS
-
-```bash
-# Create the virtual environment
-python3 -m venv venv
-
-# Activate it
-source venv/bin/activate
-
-# Install all dependencies
-pip install -r requirements.txt
-```
-
----
-
-### 🪟 Windows (Command Prompt)
+### Windows (Command Prompt)
 
 ```cmd
-:: Create the virtual environment
 python -m venv venv
-
-:: Activate it
 venv\Scripts\activate
-
-:: Install all dependencies
 pip install -r requirements.txt
 ```
 
-> **Windows PowerShell users** — if you get an "execution policy" error, run this first:
+> PowerShell users - if you get an "execution policy" error, run this first:
 > ```powershell
 > Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 > ```
@@ -89,91 +58,81 @@ pip install -r requirements.txt
 
 ---
 
-## 🚀 Step 3 — Run the Application
+## Step 3 - Run the App
 
-### 🐧 Linux & 🍎 macOS
+### Linux / macOS
 
-You can use the included startup script for a one-click launch:
+You can use the startup script:
 
 ```bash
 chmod +x start_ims.sh
 ./start_ims.sh
 ```
 
-**Or run manually:**
+Or run manually:
 
 ```bash
 source venv/bin/activate
 uvicorn main:app --reload
 ```
 
----
-
-### 🪟 Windows
+### Windows
 
 ```cmd
-:: Activate the environment first
 venv\Scripts\activate
-
-:: Start the server
 uvicorn main:app --reload
 ```
 
 ---
 
-## 🌐 Step 4 — Open in Browser
+## Step 4 - Open in Browser
 
-Once the server starts, you will see output like this:
+Once the server starts you should see:
 
 ```
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
 ```
 
-Open your browser and go to:
-
-**➡️ [http://127.0.0.1:8000](http://127.0.0.1:8000)**
-
-The app will be fully loaded with demo data automatically. ✅
+Go to **http://127.0.0.1:8000** in your browser. The app loads with sample data automatically.
 
 ---
 
-## 🗂️ What Each Page Does
+## Pages
 
-| Page | URL | Description |
+| Page | URL | What it does |
 |------|-----|-------------|
-| Home | `/` | Landing page with quick-access tiles |
-| Users | `/users` | View registered users and roles |
-| Products | `/products` | Product catalog with cost/margin data |
-| New Order | `/create-order` | Place a new customer order |
-| Manage Orders | `/manage-orders` | Track and update order statuses |
-| Inventory | `/inventory` | Real-time stock levels and alerts |
-| Dashboard | `/dashboard` | Analytics hub with KPI metrics |
+| Home | `/` | Landing page with links to everything |
+| Users | `/users` | View, search, add and remove users |
+| Products | `/products` | Product list with pricing info |
+| New Order | `/create-order` | Place a new order for a customer |
+| Manage Orders | `/manage-orders` | Approve, decline or ship orders |
+| Inventory | `/inventory` | Stock levels with manual adjustment |
+| Dashboard | `/dashboard` | Summary stats and top selling products |
 
 ---
 
-## 🛑 How to Stop the Server
+## How to Stop
 
-Press `Ctrl + C` in the terminal window where the server is running.
+Press `Ctrl + C` in the terminal.
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### ❌ `python` command not found (Linux/macOS)
-Use `python3` instead of `python` in all commands.
+### `python` command not found (Linux/macOS)
+Use `python3` instead.
 
-### ❌ `uvicorn: command not found`
-This means your virtual environment is not activated. Re-run the activate command for your OS (Step 2) and try again.
+### `uvicorn: command not found`
+Your venv is not activated. Run the activate command from Step 2 again.
 
-### ❌ Port already in use
-Run on a different port:
+### Port already in use
 ```bash
 uvicorn main:app --reload --port 8001
 ```
-Then open [http://127.0.0.1:8001](http://127.0.0.1:8001).
+Then open http://127.0.0.1:8001
 
-### ❌ Pages load but show no data
-The database file will be created automatically the first time you run the server. If it still shows nothing, delete `inventory.db` and restart — it will rebuild fresh.
+### Pages show no data
+Delete `inventory.db` and restart the server. It will rebuild with fresh data.
 
 ```bash
 # Linux / macOS
@@ -183,20 +142,20 @@ rm inventory.db
 del inventory.db
 ```
 
-### ❌ Git clone fails (SSH key not set up)
-Use HTTPS instead:
+### Git clone fails
+Use HTTPS:
 ```bash
 git clone https://github.com/AhnafZ778/CSE370.git
 ```
 
 ---
 
-## 💡 Pro Tips
+## Tips
 
-- **Keep the terminal open** while using the app — closing it stops the server.
-- The `--reload` flag means the server **auto-restarts** whenever you save a `.py` file. No need to restart manually.
-- Your local `inventory.db` file is **not tracked by git** — any data you add or change is local to your machine only.
+- Keep the terminal open while using the app, closing it kills the server
+- The `--reload` flag auto restarts when you save a `.py` file
+- `inventory.db` is not tracked by git, your local data stays local
 
 ---
 
-*Questions? Ping the group chat. Happy coding!* 🚀
+*Questions? Ping the group chat.*

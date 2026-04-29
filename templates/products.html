@@ -1,15 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Product Catalog | IMS Core{% endblock %}
+{% block title %}Products | IMS{% endblock %}
 
 {% block content %}
 <div class="row mb-5 align-items-center">
     <div class="col-lg-6">
-        <h2 class="mb-1">Product Catalog</h2>
-        <p class="text-muted">Direct mapping of SKUs, pricing, and supplier relationships.</p>
-    </div>
-    <div class="col-lg-6 text-lg-end">
-        <button class="btn btn-primary">+ Register Product</button>
+        <h2 class="mb-1">Products</h2>
+        <p class="text-muted">All products with their pricing and supplier info.</p>
     </div>
 </div>
 
@@ -17,7 +14,7 @@
     <table class="table table-hover">
         <thead>
             <tr>
-                <th>Product ID</th>
+                <th>ID</th>
                 <th>Name</th>
                 <th>Category</th>
                 <th>Unit Cost</th>
@@ -49,8 +46,7 @@
             {% else %}
                 <tr>
                     <td colspan="7" class="text-center text-muted py-5">
-                        <div class="opacity-50 mb-3">📦</div>
-                        <em>Initialize the database to see product registry.</em>
+                        <em>No products in the database yet.</em>
                     </td>
                 </tr>
             {% endif %}

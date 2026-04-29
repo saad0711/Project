@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Live Inventory Stock | IMS Core{% endblock %}
+{% block title %}Inventory | IMS{% endblock %}
 
 {% block content %}
 <div class="row mb-5 align-items-center">
     <div class="col-lg-6">
-        <h2 class="mb-1">Inventory Control Center</h2>
-        <p class="text-muted">Real-time stock levels and automated threshold monitoring.</p>
+        <h2 class="mb-1">Inventory</h2>
+        <p class="text-muted">Current stock levels for all products. Update stock manually if needed.</p>
     </div>
     <div class="col-lg-6 text-lg-end">
-        <button class="btn btn-outline-primary" onclick="location.reload()">Refresh Live Data</button>
+        <button class="btn btn-outline-primary" onclick="location.reload()">Refresh</button>
     </div>
 </div>
 
@@ -17,13 +17,13 @@
     <table class="table table-hover">
         <thead>
             <tr>
-                <th>Asset ID</th>
-                <th>Product Description</th>
-                <th>Current Level</th>
-                <th>Safety Threshold</th>
-                <th>Supply Health</th>
-                <th>Last Restock</th>
-                <th class="text-center">Manual Adjustment</th>
+                <th>Product ID</th>
+                <th>Product Name</th>
+                <th>Current Stock</th>
+                <th>Min Threshold</th>
+                <th>Stock Status</th>
+                <th>Last Restocked</th>
+                <th class="text-center">Update</th>
             </tr>
         </thead>
         <tbody>
@@ -36,20 +36,20 @@
                     <td class="text-muted">{{ item.min_threshold }}</td>
                     <td>
                         {% if item.current_stock < item.min_threshold %}
-                            <span class="badge bg-danger shadow-sm border border-danger border-opacity-50">CRITICAL LOW</span>
+                            <span class="badge bg-danger">LOW</span>
                         {% elif item.current_stock < item.min_threshold * 2 %}
-                            <span class="badge bg-warning text-dark border border-warning border-opacity-50">WARNING</span>
+                            <span class="badge bg-warning text-dark">WARNING</span>
                         {% else %}
-                            <span class="badge bg-success shadow-sm border border-success border-opacity-50">OPTIMAL</span>
+                            <span class="badge bg-success">OK</span>
                         {% endif %}
                     </td>
                     <td class="small text-muted">{{ item.last_restock_date }}</td>
                     <td>
                         <form action="/adjust-stock" method="POST" class="d-inline-flex justify-content-center">
                             <input type="hidden" name="product_id" value="{{ item.product_id }}">
-                            <div class="input-group input-group-sm shadow-sm radius-soft overflow-hidden">
+                            <div class="input-group input-group-sm shadow-sm overflow-hidden">
                                 <input type="number" name="new_qty" class="form-control border-0 bg-light" value="{{ item.current_stock }}" style="width: 70px;">
-                                <button type="submit" class="btn btn-primary border-0 btn-sm">Update</button>
+                                <button type="submit" class="btn btn-primary border-0 btn-sm">Set</button>
                             </div>
                         </form>
                     </td>
@@ -58,8 +58,7 @@
             {% else %}
                 <tr>
                     <td colspan="7" class="text-center text-muted py-5">
-                        <div class="opacity-50 mb-3">🛠️</div>
-                        <em>Initialize inventory records via direct SQL or product registration.</em>
+                        <em>No inventory data found.</em>
                     </td>
                 </tr>
             {% endif %}

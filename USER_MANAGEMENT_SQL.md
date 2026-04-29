@@ -1,87 +1,72 @@
-# 🗄️ SQL Logic — Manage Users Segment
+# SQL Logic - User Management
 
-This document explains the exact SQL queries used in the **Manage Users** segment of the Inventory Management System and how they handle each core function.
+This document explains the SQL queries used in the Users section of the app.
 
 ---
 
-## 1. Viewing & Searching Users
-**Function:** Fetches the list of all users to display in the management table. Handles both the default view and filtered search results.
+## 1. Viewing and Searching Users
 
 ### A. Default View (All Users)
-*   **File:** [`main.py`](file:///home/ahnaf-zakaria/Desktop/370_Project/main.py)
-*   **Lines:** 67-69
 
 ```sql
 SELECT user_id, full_name, email, role, company_name, status, created_at
 FROM USERS
 ORDER BY created_at DESC;
 ```
-*   **`ORDER BY created_at DESC`**: Ensures that the most recently added users appear at the top for immediate verification.
+- `ORDER BY created_at DESC` puts the newest users at the top
 
-### B. Filtered Search
-*   **File:** [`main.py`](file:///home/ahnaf-zakaria/Desktop/370_Project/main.py)
-*   **Lines:** 54-61
+### B. Search
 
 ```sql
 SELECT user_id, full_name, email, role, company_name, status, created_at
 FROM USERS
-WHERE full_name LIKE %s
-   OR email LIKE %s
-   OR role LIKE %s
-   OR company_name LIKE %s
+WHERE full_name LIKE ?
+   OR email LIKE ?
+   OR role LIKE ?
+   OR company_name LIKE ?
 ORDER BY created_at DESC;
 ```
-*   **`LIKE %s`**: Uses wildcards (e.g., `%keyword%`) to find partial matches. If you search for "Ahnaf", it will find "Ahnaf Zakaria".
-*   **`OR`**: Allows the system to find the term regardless of whether it's a name, email, or company.
+- `LIKE ?` uses wildcards like `%keyword%` to find partial matches
+- `OR` lets us search across multiple columns at once
 
 ---
 
-## 2. Adding a New User
-*   **File:** [`main.py`](file:///home/ahnaf-zakaria/Desktop/370_Project/main.py)
-*   **Line:** 124
+## 2. Adding a User
 
 ```sql
-INSERT INTO USERS (full_name, email, role, company_name, status) 
-VALUES (%s, %s, %s, %s, %s);
+INSERT INTO USERS (full_name, email, role, company_name, status)
+VALUES (?, ?, ?, ?, ?);
 ```
-*   **Columns**: Specifies where the data goes (`full_name`, `email`, etc.).
-*   **`VALUES`**: The `%s` are placeholders. This prevents **SQL Injection** by making sure the database treats the input as "data" only, not as "code".
-*   **Auto-ID**: Note that `user_id` is not in this query; the database generates it automatically using `AUTO_INCREMENT`.
+- The `?` are placeholders, this prevents SQL injection
+- `user_id` is auto generated so we dont include it
 
 ---
 
-## 3. Removing a User (With Safety Checks)
-**Function:** Safely removes a user while ensuring "Referential Integrity" (no ghost users linked to active orders).
+## 3. Deleting a User
 
-### Step 1: The Dependency Check
-*   **File:** [`main.py`](file:///home/ahnaf-zakaria/Desktop/370_Project/main.py)
-*   **Lines:** 149-150
+### Step 1: Check if the user has orders
 
 ```sql
-SELECT order_id 
-FROM ORDERS 
-WHERE requested_by = %s 
+SELECT order_id
+FROM ORDERS
+WHERE requested_by = ?
 ORDER BY order_id ASC;
 ```
-*   **Logic**: If this returns even one `order_id`, the system cancels the deletion and shows you exactly which orders are blocking it.
+- If this returns anything, we cant delete the user because their orders would become orphaned
+- We show the user which order IDs are blocking the deletion
 
-### Step 2: The Deletion
-*   **File:** [`main.py`](file:///home/ahnaf-zakaria/Desktop/370_Project/main.py)
-*   **Line:** 163
+### Step 2: Actually delete
 
 ```sql
-DELETE FROM USERS 
-WHERE user_id = %s;
+DELETE FROM USERS
+WHERE user_id = ?;
 ```
-*   **`WHERE user_id = %s`**: This is critical. It targets the unique ID to ensure we don't accidentally delete multiple people with the same name.
+- Uses the unique `user_id` so we dont accidentally delete someone else
 
 ---
 
-## 🛡️ Important: Transaction Management
-For **Add** and **Delete** actions, the system uses **Transactions**:
-1.  **`db.commit()`**: Only if the SQL command finishes perfectly does the database "save" the change.
-2.  **`db.rollback()`**: If there is an error (like a duplicate email or a server crash mid-way), the system "undoes" the partial work so the data stays perfect.
+## Transaction Management
 
----
-
-*This SQL structure follows standard relational database principles common in CSE 370 and industry-grade systems.* 🚀
+For add and delete, we use transactions:
+1. `conn.commit()` - saves the change only if everything worked
+2. `conn.rollback()` - undoes partial work if something went wrong (like a duplicate email)

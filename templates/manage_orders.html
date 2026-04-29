@@ -1,16 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Order Ledger | IMS Core{% endblock %}
+{% block title %}Manage Orders | IMS{% endblock %}
 
 {% block content %}
 <style>
-    .decision-actions {
-        display: inline-flex;
-        gap: 0.5rem;
-        align-items: center;
-        justify-content: center;
-    }
-
     .action-btn {
         width: 2.1rem;
         height: 2.1rem;
@@ -21,21 +14,17 @@
         font-size: 1rem;
         font-weight: 700;
         line-height: 1;
-        transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
         border: none;
     }
-
     .action-btn:hover {
         transform: translateY(-1px);
         box-shadow: 0 6px 12px rgba(0, 0, 0, 0.16);
-        opacity: 0.95;
     }
-
     .action-btn-approve {
         background: #1f9d55;
         color: #ffffff;
     }
-
     .action-btn-decline {
         background: #d64545;
         color: #ffffff;
@@ -44,13 +33,13 @@
 
 <div class="row mb-5 align-items-center">
     <div class="col-lg-6">
-        <h2 class="mb-1">Order Management Ledger</h2>
-        <p class="text-muted">Lifecycle tracking with one-click approve or decline controls.</p>
+        <h2 class="mb-1">Manage Orders</h2>
+        <p class="text-muted">Approve, decline or ship orders from here.</p>
     </div>
     <div class="col-lg-6 text-lg-end">
         <form method="get" action="/manage-orders" class="d-inline-flex gap-2 align-items-end">
             <div class="text-start">
-                <label for="sort_by" class="form-label fw-bold small text-uppercase mb-1">Sort Orders</label>
+                <label for="sort_by" class="form-label fw-bold small mb-1">Sort By</label>
                 <select id="sort_by" name="sort_by" class="form-select form-select-sm shadow-sm">
                     {% for option in sort_options %}
                         <option value="{{ option.value }}" {% if option.value == current_sort %}selected{% endif %}>
@@ -59,7 +48,7 @@
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn btn-outline-primary btn-sm px-3 py-2">Apply Sort</button>
+            <button type="submit" class="btn btn-outline-primary btn-sm px-3 py-2">Apply</button>
         </form>
     </div>
 </div>
@@ -68,12 +57,12 @@
     <table class="table table-hover">
         <thead>
             <tr>
-                <th>Order Ref</th>
-                <th>Client Name</th>
-                <th>timestamp</th>
-                <th>Value</th>
-                <th>Workflow Status</th>
-                <th class="text-center">Approve / Decline</th>
+                <th>Order ID</th>
+                <th>Customer</th>
+                <th>Date</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th class="text-center">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -89,7 +78,7 @@
                     <td class="fw-bold text-primary">${{ "%.2f"|format(o.total_amount|float) }}</td>
                     <td>
                         {% if o.status == 'PENDING' %}
-                            <span class="badge bg-warning text-dark"><i class="bi bi-clock-history"></i> PENDING</span>
+                            <span class="badge bg-warning text-dark">PENDING</span>
                         {% elif o.status == 'CONFIRMED' %}
                             <span class="badge bg-success">CONFIRMED</span>
                         {% elif o.status == 'SHIPPED' %}
@@ -104,24 +93,20 @@
                     </td>
                     <td class="text-center">
                         {% if o.status == 'PENDING' %}
-                            <div class="decision-actions">
+                            <div class="d-inline-flex gap-2">
                                 <form action="/update-order-status" method="POST" class="d-inline">
                                     <input type="hidden" name="order_id" value="{{ o.order_id }}">
                                     <input type="hidden" name="new_status" value="CONFIRMED">
                                     <input type="hidden" name="redirect_to" value="/manage-orders">
                                     <input type="hidden" name="sort_by" value="{{ current_sort }}">
-                                    <button type="submit" class="action-btn action-btn-approve" title="Approve order" aria-label="Approve order">
-                                        &check;
-                                    </button>
+                                    <button type="submit" class="action-btn action-btn-approve" title="Approve">&check;</button>
                                 </form>
                                 <form action="/update-order-status" method="POST" class="d-inline">
                                     <input type="hidden" name="order_id" value="{{ o.order_id }}">
                                     <input type="hidden" name="new_status" value="CANCELLED">
                                     <input type="hidden" name="redirect_to" value="/manage-orders">
                                     <input type="hidden" name="sort_by" value="{{ current_sort }}">
-                                    <button type="submit" class="action-btn action-btn-decline" title="Decline order" aria-label="Decline order">
-                                        &times;
-                                    </button>
+                                    <button type="submit" class="action-btn action-btn-decline" title="Decline">&times;</button>
                                 </form>
                             </div>
                         {% elif o.status == 'CONFIRMED' %}
@@ -130,10 +115,10 @@
                                 <input type="hidden" name="new_status" value="SHIPPED">
                                 <input type="hidden" name="redirect_to" value="/manage-orders">
                                 <input type="hidden" name="sort_by" value="{{ current_sort }}">
-                                <button type="submit" class="btn btn-sm btn-info text-white" title="Ship order" aria-label="Ship order">Ship</button>
+                                <button type="submit" class="btn btn-sm btn-info text-white">Ship</button>
                             </form>
                         {% else %}
-                            <span class="text-muted small">Finalized</span>
+                            <span class="text-muted small">Done</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -141,8 +126,7 @@
             {% else %}
                 <tr>
                     <td colspan="6" class="text-center text-muted py-5">
-                        <div class="opacity-50 mb-3">📋</div>
-                        <em>No transactions found in the global ledger.</em>
+                        <em>No orders found.</em>
                     </td>
                 </tr>
             {% endif %}

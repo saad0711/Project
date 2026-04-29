@@ -1,50 +1,45 @@
 {% extends "base.html" %}
 
-{% block title %}Place New Order | IMS Core{% endblock %}
+{% block title %}New Order | IMS{% endblock %}
 
 {% block content %}
 <div class="row">
     <div class="col-lg-5">
         <div class="card mb-4">
             <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">Create Transaction</h4>
+                <h4 class="mb-0">Place Order</h4>
             </div>
             <div class="card-body p-4">
-                <p class="text-muted small mb-4">Place an order here. Decision actions are available only in Order Tracking. This section shows the current decision for each order as view-only information.</p>
-                
+                <p class="text-muted small mb-4">Select a customer, pick a product and set the quantity. The order will start as PENDING until you approve it from the Manage page.</p>
+
                 <form action="/create-order" method="POST">
                     <input type="hidden" name="sort_by" value="{{ current_sort }}">
                     <div class="mb-4">
-                        <label for="customer_id" class="form-label fw-bold small text-uppercase">Target Customer</label>
+                        <label for="customer_id" class="form-label fw-bold small">Customer</label>
                         <select class="form-select shadow-sm" id="customer_id" name="customer_id" required>
-                            <option value="">-- Search Customer --</option>
+                            <option value="">-- Pick a customer --</option>
                             {% for c in customers %}
                                 <option value="{{ c.user_id }}">{{ c.full_name }} ({{ c.email }})</option>
                             {% endfor %}
                         </select>
                     </div>
-                    
+
                     <div class="mb-4">
-                        <label for="product_id" class="form-label fw-bold small text-uppercase">Asset Selection</label>
+                        <label for="product_id" class="form-label fw-bold small">Product</label>
                         <select class="form-select shadow-sm" id="product_id" name="product_id" required>
-                            <option value="">-- Search Product Category --</option>
+                            <option value="">-- Pick a product --</option>
                             {% for p in products %}
-                                <option value="{{ p.product_id }}">{{ p.product_name }} — ${{ p.selling_price }}</option>
+                                <option value="{{ p.product_id }}">{{ p.product_name }} - ${{ p.selling_price }}</option>
                             {% endfor %}
                         </select>
                     </div>
 
                     <div class="mb-4">
-                        <label for="quantity" class="form-label fw-bold small text-uppercase">Quantity</label>
-                        <div class="input-group shadow-sm">
-                            <span class="input-group-text bg-light border-0">Qty</span>
-                            <input type="number" class="form-control border-0" id="quantity" name="quantity" min="1" value="1" required>
-                        </div>
+                        <label for="quantity" class="form-label fw-bold small">Quantity</label>
+                        <input type="number" class="form-control" id="quantity" name="quantity" min="1" value="1" required>
                     </div>
 
-                    <button type="submit" class="btn btn-primary w-100 py-3 shadow">
-                        Place Product Order
-                    </button>
+                    <button type="submit" class="btn btn-primary w-100 py-3 shadow">Place Order</button>
                 </form>
             </div>
         </div>
@@ -52,12 +47,12 @@
 
     <div class="col-lg-7">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="mb-0">Recent Order Activity</h4>
+            <h4 class="mb-0">Recent Orders</h4>
         </div>
 
         <form method="get" action="/create-order" class="row g-2 align-items-end mb-3">
             <div class="col-md-7">
-                <label for="sort_by" class="form-label fw-bold small text-uppercase">Sort Recent Orders</label>
+                <label for="sort_by" class="form-label fw-bold small">Sort By</label>
                 <select id="sort_by" name="sort_by" class="form-select shadow-sm">
                     {% for option in sort_options %}
                         <option value="{{ option.value }}" {% if option.value == current_sort %}selected{% endif %}>
@@ -67,19 +62,18 @@
                 </select>
             </div>
             <div class="col-md-5">
-                <button type="submit" class="btn btn-outline-primary w-100 py-2">Apply Sort</button>
+                <button type="submit" class="btn btn-outline-primary w-100 py-2">Apply</button>
             </div>
         </form>
-        
+
         <div class="table-container bg-white">
             <table class="table table-sm">
                 <thead>
                     <tr class="text-muted small">
                         <th>ID</th>
-                        <th>TS_RECORD</th>
-                        <th>ENTITY</th>
-                        <th class="text-end">STATUS</th>
-                        <th class="text-end">DECISION</th>
+                        <th>Date</th>
+                        <th>Details</th>
+                        <th class="text-end">Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -96,26 +90,15 @@
                             </td>
                             <td class="text-end">
                                 {% if order.status == 'CANCELLED' %}
-                                    <span class="badge bg-danger">DECLINED</span>
+                                    <span class="badge bg-danger">CANCELLED</span>
                                 {% elif order.status == 'CONFIRMED' %}
                                     <span class="badge bg-success">CONFIRMED</span>
                                 {% elif order.status == 'SHIPPED' %}
                                     <span class="badge bg-info text-white">SHIPPED</span>
                                 {% elif order.status == 'PENDING' %}
-                                    <span class="badge bg-primary">PLACED</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">{{ order.status }}</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-end">
-                                {% if order.status == 'PENDING' %}
-                                    <span class="badge bg-secondary">Waiting</span>
-                                {% elif order.status == 'CONFIRMED' %}
-                                    <span class="badge bg-success">Yes</span>
-                                {% elif order.status == 'CANCELLED' %}
-                                    <span class="badge bg-danger">No</span>
-                                {% elif order.status == 'SHIPPED' %}
-                                    <span class="badge bg-info text-white">Shipped</span>
+                                    <span class="badge bg-primary">PENDING</span>
+                                {% elif order.status == 'DELIVERED' %}
+                                    <span class="badge bg-success">DELIVERED</span>
                                 {% else %}
                                     <span class="badge bg-secondary">{{ order.status }}</span>
                                 {% endif %}
@@ -124,8 +107,8 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-5">
-                                <div class="small opacity-50">READY FOR NEW INPUT</div>
+                            <td colspan="4" class="text-center text-muted py-5">
+                                No orders yet.
                             </td>
                         </tr>
                     {% endif %}
