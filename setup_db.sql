@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS ORDERS (
     order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status ENUM('PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED') DEFAULT 'PENDING',
     order_type VARCHAR(20),
-    FOREIGN KEY (requested_by) REFERENCES USERS(user_id)
+    FOREIGN KEY (requested_by) REFERENCES USERS(user_id) ON DELETE CASCADE
 );
 
 -- Each row here is one item inside an order

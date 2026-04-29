@@ -239,10 +239,44 @@ async def user_dashboard(request: Request):
         cursor.execute("SELECT COUNT(*) as total FROM PRODUCTS")
         product_count = cursor.fetchone()["total"]
 
+        ## fetch all products for the user to potentially order
+        cursor.execute(
+            "SELECT p.product_id, p.product_name, p.category, p.selling_price, i.current_stock "
+            "FROM PRODUCTS p "
+            "LEFT JOIN INVENTORY i ON p.product_id = i.product_id "
+            "ORDER BY p.product_name ASC"
+        )
+        available_products = rows_to_dicts(cursor.fetchall())
+
+        my_products = []
+        supplier_info = None
+        if user["role"] == "Supplier":
+            cursor.execute("SELECT supplier_id, contact_phone, address FROM SUPPLIERS WHERE user_id = ?", (user["user_id"],))
+            supplier_info = cursor.fetchone()
+            
+            ## Auto-create supplier record if it's missing so they can use the dashboard
+            if not supplier_info:
+                cursor.execute("INSERT INTO SUPPLIERS (user_id) VALUES (?)", (user["user_id"],))
+                conn.commit()
+                cursor.execute("SELECT supplier_id, contact_phone, address FROM SUPPLIERS WHERE user_id = ?", (user["user_id"],))
+                supplier_info = cursor.fetchone()
+            if supplier_info:
+                cursor.execute(
+                    "SELECT p.product_id, p.product_name, p.category, p.selling_price, i.current_stock "
+                    "FROM PRODUCTS p "
+                    "LEFT JOIN INVENTORY i ON p.product_id = i.product_id "
+                    "WHERE p.supplier_id = ? ORDER BY p.product_name ASC",
+                    (supplier_info["supplier_id"],)
+                )
+                my_products = rows_to_dicts(cursor.fetchall())
+
     except Exception as e:
         print(f"Error loading user dashboard: {e}")
         my_orders = []
         product_count = 0
+        available_products = []
+        my_products = []
+        supplier_info = None
     finally:
         cursor.close()
         conn.close()
@@ -251,7 +285,76 @@ async def user_dashboard(request: Request):
         "user": user,
         "my_orders": my_orders,
         "product_count": product_count,
+        "available_products": available_products,
+        "my_products": my_products,
+        "supplier_info": supplier_info
     })
+
+@app.post("/user/place-order")
+async def user_place_order(request: Request):
+    check = require_login(request)
+    if check:
+        return check
+
+    user = get_session_user(request)
+    form = await request.form()
+    product_id = form.get("product_id")
+    try:
+        quantity = int(form.get("quantity", "1"))
+    except ValueError:
+        quantity = 1
+
+    if quantity <= 0:
+        return RedirectResponse(url="/user-dashboard?error=Invalid+quantity", status_code=303)
+
+    conn = database.get_connection()
+    if conn is None:
+        return RedirectResponse(url="/user-dashboard?error=Database+Error", status_code=303)
+
+    cursor = conn.cursor()
+    try:
+        # Check stock
+        cursor.execute("SELECT current_stock FROM INVENTORY WHERE product_id = ?", (product_id,))
+        inv = cursor.fetchone()
+        if not inv or inv["current_stock"] < quantity:
+            return RedirectResponse(url="/user-dashboard?error=Not+enough+stock+available", status_code=303)
+
+        # Get product price
+        cursor.execute("SELECT selling_price FROM PRODUCTS WHERE product_id = ?", (product_id,))
+        prod = cursor.fetchone()
+        if not prod:
+            return RedirectResponse(url="/user-dashboard?error=Product+not+found", status_code=303)
+        unit_price = prod["selling_price"]
+
+        # Create Order
+        cursor.execute(
+            "INSERT INTO ORDERS (requested_by, order_type, status) VALUES (?, ?, ?)",
+            (user["user_id"], "Standard", "PENDING")
+        )
+        order_id = cursor.lastrowid
+
+        # Insert item
+        cursor.execute(
+            "INSERT INTO ORDER_ITEMS (order_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?)",
+            (order_id, product_id, quantity, unit_price)
+        )
+        
+        # Deduct stock temporarily (until status updates)
+        cursor.execute(
+            "UPDATE INVENTORY SET current_stock = current_stock - ? WHERE product_id = ?",
+            (quantity, product_id)
+        )
+
+        conn.commit()
+    except Exception as e:
+        print(f"Error placing user order: {e}")
+        conn.rollback()
+        return RedirectResponse(url="/user-dashboard?error=Failed+to+place+order", status_code=303)
+    finally:
+        cursor.close()
+        conn.close()
+
+    return RedirectResponse(url="/user-dashboard?success=Order+placed+successfully", status_code=303)
 
 
 # ---------- USERS (admin only) ----------
@@ -312,7 +415,7 @@ async def view_users(request: Request):
                 "SELECT u.user_id, u.full_name, u.email, u.role, u.company_name, u.status, u.created_at, "
                 "(SELECT COUNT(*) FROM ORDERS o WHERE o.requested_by = u.user_id AND o.archived = 0) AS order_count "
                 "FROM USERS u "
-                "WHERE u.full_name LIKE ? OR u.email LIKE ? OR u.role LIKE ? OR u.company_name LIKE ? "
+                "WHERE (u.full_name LIKE ? OR u.email LIKE ? OR u.role LIKE ? OR u.company_name LIKE ?) AND u.status != 'Deleted' "
                 f"ORDER BY {order_clause}",
                 (like, like, like, like)
             )
@@ -321,6 +424,7 @@ async def view_users(request: Request):
                 "SELECT u.user_id, u.full_name, u.email, u.role, u.company_name, u.status, u.created_at, "
                 "(SELECT COUNT(*) FROM ORDERS o WHERE o.requested_by = u.user_id AND o.archived = 0) AS order_count "
                 "FROM USERS u "
+                "WHERE u.status != 'Deleted' "
                 f"ORDER BY {order_clause}"
             )
 
@@ -410,25 +514,32 @@ async def delete_user(request: Request):
     redirect_url = "/users?status=success&message=User+removed+successfully"
 
     try:
-        cursor.execute("SELECT order_id FROM ORDERS WHERE requested_by = ? ORDER BY order_id ASC", (user_id,))
-        linked = rows_to_dicts(cursor.fetchall())
+        cursor.execute("SELECT order_id FROM ORDERS WHERE requested_by = ? AND archived = 0 ORDER BY order_id ASC", (user_id,))
+        active_orders = rows_to_dicts(cursor.fetchall())
 
-        if linked:
-            ids = [str(row["order_id"]) for row in linked]
+        if active_orders:
+            ids = [str(row["order_id"]) for row in active_orders]
             order_list = ", ".join(f"#{oid}" for oid in ids)
             label = "order" if len(ids) == 1 else "orders"
-            msg = quote_plus(f"Cannot remove user. Linked {label}: {order_list}")
+            msg = quote_plus(f"Cannot remove user. Linked active {label}: {order_list}")
             redirect_url = f"/users?status=warning&message={msg}"
             conn.rollback()
             return RedirectResponse(url=redirect_url, status_code=303)
 
-        cursor.execute("DELETE FROM USERS WHERE user_id = ?", (user_id,))
-        if cursor.rowcount <= 0:
-            msg = quote_plus("No matching user found.")
-            redirect_url = f"/users?status=warning&message={msg}"
-            conn.rollback()
-        else:
+        cursor.execute("SELECT COUNT(*) as cnt FROM ORDERS WHERE requested_by = ?", (user_id,))
+        total_orders = cursor.fetchone()["cnt"]
+
+        if total_orders > 0:
+            cursor.execute("UPDATE USERS SET status = 'Deleted' WHERE user_id = ?", (user_id,))
             conn.commit()
+        else:
+            cursor.execute("DELETE FROM USERS WHERE user_id = ?", (user_id,))
+            if cursor.rowcount <= 0:
+                msg = quote_plus("No matching user found.")
+                redirect_url = f"/users?status=warning&message={msg}"
+                conn.rollback()
+            else:
+                conn.commit()
 
     except Exception as e:
         print(f"Error deleting user: {e}")
@@ -512,8 +623,8 @@ async def view_suppliers(request: Request):
         ## so the admin can add them as suppliers
         cursor.execute(
             "SELECT u.user_id, u.full_name, u.email FROM USERS u "
-            "WHERE u.role = 'Supplier' "
-            "AND u.user_id NOT IN (SELECT s.user_id FROM SUPPLIERS s) "
+            "LEFT JOIN SUPPLIERS s ON u.user_id = s.user_id "
+            "WHERE s.supplier_id IS NULL AND u.status != 'Deleted' "
             "ORDER BY u.full_name ASC"
         )
         available_users = rows_to_dicts(cursor.fetchall())
@@ -660,7 +771,7 @@ async def create_order_form(request: Request):
     try:
         cursor.execute(
             "SELECT user_id, full_name, email FROM USERS "
-            "WHERE role IN ('User', 'Retailer', 'Customer') "
+            "WHERE role IN ('User', 'Retailer', 'Customer') AND status != 'Deleted' "
             "ORDER BY full_name ASC"
         )
         customers = rows_to_dicts(cursor.fetchall())
@@ -1017,3 +1128,58 @@ async def get_dashboard(request: Request):
     return templates.TemplateResponse(request=request, name="dashboard.html", context={
         "metrics": metrics, "top_products": top_products, "user": user,
     })
+
+
+
+@app.post("/supplier/add-product")
+async def supplier_add_product(request: Request):
+    check = require_login(request)
+    if check:
+        return check
+
+    user = get_session_user(request)
+    if user["role"] != "Supplier":
+        return RedirectResponse(url="/user-dashboard?error=Unauthorized", status_code=303)
+
+    form = await request.form()
+    product_name = form.get("product_name", "").strip()
+    category = form.get("category", "").strip()
+    unit_cost = form.get("unit_cost", "0").strip()
+    selling_price = form.get("selling_price", "0").strip()
+    initial_stock = form.get("initial_stock", "0").strip()
+    min_threshold = form.get("min_threshold", "0").strip()
+
+    conn = database.get_connection()
+    if conn is None:
+        return RedirectResponse(url="/user-dashboard?error=DB+Error", status_code=303)
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT supplier_id FROM SUPPLIERS WHERE user_id = ?", (user["user_id"],))
+        supplier = cursor.fetchone()
+        if not supplier:
+            return RedirectResponse(url="/user-dashboard?error=Not+registered+as+supplier", status_code=303)
+
+        supplier_id = supplier["supplier_id"]
+
+        cursor.execute(
+            "INSERT INTO PRODUCTS (product_name, category, unit_cost, selling_price, supplier_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (product_name, category, float(unit_cost), float(selling_price), supplier_id)
+        )
+        product_id = cursor.lastrowid
+
+        cursor.execute(
+            "INSERT INTO INVENTORY (product_id, current_stock, min_threshold) VALUES (?, ?, ?)",
+            (product_id, int(initial_stock), int(min_threshold))
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"Error supplier adding product: {e}")
+        conn.rollback()
+        return RedirectResponse(url="/user-dashboard?error=Failed+to+add+product", status_code=303)
+    finally:
+        cursor.close()
+        conn.close()
+
+    return RedirectResponse(url="/user-dashboard?success=Product+added+successfully", status_code=303)
