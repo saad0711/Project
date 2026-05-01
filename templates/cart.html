@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Cart | IMS{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4">
+    <div class="col">
+        <h2 class="mb-1">Your Cart</h2>
+        <p class="text-muted mb-0">Review the items you want to buy before checking out.</p>
+    </div>
+    <div class="col-auto d-flex gap-2 flex-wrap">
+        <a href="/user-dashboard#available-products" class="btn btn-outline-primary">Continue Shopping</a>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    {{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    {{ success }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Product</th>
+                        <th>Category</th>
+                        <th>Price</th>
+                        <th>Qty</th>
+                        <th>Available</th>
+                        <th>Line Total</th>
+                        <th class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if cart_items %}
+                        {% for item in cart_items %}
+                        <tr {% if item.current_stock < item.quantity %}class="table-warning"{% endif %}>
+                            <td class="ps-4 fw-semibold">{{ item.product_name }}</td>
+                            <td><span class="badge bg-light text-dark border">{{ item.category or 'N/A' }}</span></td>
+                            <td>${{ "%.2f"|format(item.selling_price|float) }}</td>
+                            <td>
+                                <form action="/cart/update" method="POST" class="d-flex gap-2 align-items-center cart-qty-form">
+                                    <input type="hidden" name="product_id" value="{{ item.product_id }}">
+                                    <input type="number" name="quantity" class="form-control form-control-sm cart-qty-input" value="{{ item.quantity }}" min="1" max="{{ item.quantity if item.quantity > item.current_stock else item.current_stock }}" style="width: 90px;">
+                                </form>
+                            </td>
+                            <td>
+                                {% if item.current_stock >= item.quantity %}
+                                    <span class="text-success fw-semibold">{{ item.current_stock }}</span>
+                                {% else %}
+                                    <span class="text-danger fw-semibold">{{ item.current_stock }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="fw-bold">${{ "%.2f"|format(item.line_total|float) }}</td>
+                            <td class="text-end pe-4">
+                                <form action="/cart/remove" method="POST" onsubmit="return confirm('Remove {{ item.product_name }} from cart?');" class="d-inline">
+                                    <input type="hidden" name="product_id" value="{{ item.product_id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-5">
+                                Your cart is empty.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4 align-items-center">
+    <div class="col-md-8 mb-3 mb-md-0">
+        <div class="text-muted small fw-bold">Items in cart</div>
+        <div class="fs-5 fw-bold">{{ cart_units }}</div>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <div class="text-muted small fw-bold">Cart Total</div>
+        <div class="fs-3 fw-bold text-success mb-3">${{ "%.2f"|format(cart_total|float) }}</div>
+        <form action="/cart/checkout" method="GET">
+            <button type="submit" class="btn btn-primary w-100 py-2" {% if not cart_items %}disabled{% endif %}>Checkout</button>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.cart-qty-form').forEach((form) => {
+        const input = form.querySelector('.cart-qty-input');
+        let timer = null;
+
+        const submitForm = () => {
+            if (!input.value) {
+                return;
+            }
+            form.requestSubmit();
+        };
+
+        input.addEventListener('input', () => {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(submitForm, 450);
+        });
+
+        input.addEventListener('change', submitForm);
+    });
+});
+</script>
+{% endblock %}

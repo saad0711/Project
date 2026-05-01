@@ -6,9 +6,22 @@
 <div class="row mb-4 align-items-center">
     <div class="col">
         <h2 class="mb-1">Welcome, {{ user.full_name }}</h2>
-        <p class="text-muted">Here is a quick look at your account.</p>
     </div>
 </div>
+
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    {{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    {{ success }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
 
 <div class="row g-4 mb-5">
     <div class="col-md-4">
@@ -37,61 +50,10 @@
     </div>
 </div>
 
-<div class="card border-0 shadow-sm">
-    <div class="card-header bg-white border-0 py-3">
-        <h5 class="mb-0 fw-bold">Your Recent Orders</h5>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th class="ps-4">Order ID</th>
-                        <th>Date</th>
-                        <th>Total</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if my_orders %}
-                        {% for o in my_orders %}
-                        <tr>
-                            <td class="ps-4 fw-bold">#{{ o.order_id }}</td>
-                            <td class="text-muted small">{{ o.order_date }}</td>
-                            <td class="fw-bold">${{ "%.2f"|format(o.total_amount|float) }}</td>
-                            <td>
-                                {% if o.status == 'PENDING' %}
-                                    <span class="badge bg-warning text-dark">PENDING</span>
-                                {% elif o.status == 'CONFIRMED' %}
-                                    <span class="badge bg-success">CONFIRMED</span>
-                                {% elif o.status == 'SHIPPED' %}
-                                    <span class="badge bg-info text-white">SHIPPED</span>
-                                {% elif o.status == 'DELIVERED' %}
-                                    <span class="badge bg-success">DELIVERED</span>
-                                {% elif o.status == 'CANCELLED' %}
-                                    <span class="badge bg-danger">CANCELLED</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">{{ o.status }}</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td colspan="4" class="text-center text-muted py-5">
-                                You don't have any orders yet.
-                            </td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<div class="row mt-5 mb-3 align-items-center">
+<div class="row mt-5 mb-3 align-items-center" id="available-products">
     <div class="col">
-        <h4 class="mb-0 fw-bold">Available Products</h4>
+        <h4 class="mb-1 fw-bold">Add to Cart</h4>
+        <p class="text-muted small mb-0">Pick a product below and add it to your cart. You can review everything together before checkout.</p>
     </div>
 </div>
 
@@ -114,10 +76,10 @@
                         {% endif %}
                     </div>
                     {% if p.current_stock > 0 %}
-                        <form action="/user/place-order" method="POST" class="d-flex gap-2">
+                        <form action="/cart/add" method="POST" class="d-flex gap-2">
                             <input type="hidden" name="product_id" value="{{ p.product_id }}">
                             <input type="number" name="quantity" class="form-control border-0 bg-light" value="1" min="1" max="{{ p.current_stock }}" style="width: 80px;" required>
-                            <button type="submit" class="btn btn-primary flex-grow-1">Order Now</button>
+                            <button type="submit" class="btn btn-primary flex-grow-1">Add to Cart</button>
                         </form>
                     {% else %}
                         <button class="btn btn-secondary w-100" disabled>Out of Stock</button>

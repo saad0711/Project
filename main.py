@@ -49,6 +49,69 @@ def rows_to_dicts(rows):
     return [dict(row) for row in rows]
 
 
+def group_order_rows(rows):
+    grouped_orders = []
+    order_lookup = {}
+
+    for row in rows:
+        order_id = row["order_id"]
+        order = order_lookup.get(order_id)
+
+        if order is None:
+            order = {
+                "order_id": order_id,
+                "order_date": row["order_date"],
+                "status": row["status"],
+                "order_type": row["order_type"],
+                "customer_name": row["customer_name"],
+                "delivery_address": row["delivery_address"],
+                "contact_phone": row["contact_phone"],
+                "contact_email": row["contact_email"],
+                "order_notes": row["order_notes"],
+                "archived": row["archived"],
+                "line_items": [],
+                "item_count": 0,
+                "total_amount": 0.0,
+            }
+            order_lookup[order_id] = order
+            grouped_orders.append(order)
+
+        if row["item_id"] is not None:
+            line_total = float(row["line_total"] or 0)
+            order["line_items"].append({
+                "item_id": row["item_id"],
+                "product_id": row["product_id"],
+                "product_name": row["product_name"],
+                "category": row["category"],
+                "quantity": row["quantity"],
+                "unit_price": row["unit_price"],
+                "line_total": line_total,
+            })
+            order["item_count"] += 1
+            order["total_amount"] += line_total
+
+    return grouped_orders
+
+
+def fetch_cart_rows(cursor, user_id):
+    cursor.execute(
+        "SELECT ci.cart_item_id, ci.user_id, ci.product_id, ci.quantity, ci.updated_at, "
+        "p.product_name, p.category, p.selling_price, "
+        "COALESCE(i.current_stock, 0) AS current_stock, "
+        "(ci.quantity * p.selling_price) AS line_total "
+        "FROM CART_ITEMS ci "
+        "JOIN PRODUCTS p ON p.product_id = ci.product_id "
+        "LEFT JOIN INVENTORY i ON i.product_id = p.product_id "
+        "WHERE ci.user_id = ? "
+        "ORDER BY ci.updated_at DESC, ci.cart_item_id ASC",
+        (user_id,)
+    )
+    cart_rows = rows_to_dicts(cursor.fetchall())
+    cart_total = sum(float(row["line_total"] or 0) for row in cart_rows)
+    cart_units = sum(int(row["quantity"] or 0) for row in cart_rows)
+    return cart_rows, cart_total, cart_units
+
+
 def get_session_user(request):
     ## pulls logged in user info from the session cookie
     ## returns None if not logged in
@@ -218,6 +281,8 @@ async def user_dashboard(request: Request):
         return check
 
     user = get_session_user(request)
+    error = request.query_params.get("error", "")
+    success = request.query_params.get("success", "")
     conn = database.get_connection()
     if conn is None:
         return HTMLResponse("DB Connection Failed", status_code=500)
@@ -241,7 +306,8 @@ async def user_dashboard(request: Request):
 
         ## fetch all products for the user to potentially order
         cursor.execute(
-            "SELECT p.product_id, p.product_name, p.category, p.selling_price, i.current_stock "
+            "SELECT p.product_id, p.product_name, p.category, p.selling_price, "
+            "COALESCE(i.current_stock, 0) AS current_stock "
             "FROM PRODUCTS p "
             "LEFT JOIN INVENTORY i ON p.product_id = i.product_id "
             "ORDER BY p.product_name ASC"
@@ -262,7 +328,8 @@ async def user_dashboard(request: Request):
                 supplier_info = cursor.fetchone()
             if supplier_info:
                 cursor.execute(
-                    "SELECT p.product_id, p.product_name, p.category, p.selling_price, i.current_stock "
+                    "SELECT p.product_id, p.product_name, p.category, p.selling_price, "
+                    "COALESCE(i.current_stock, 0) AS current_stock "
                     "FROM PRODUCTS p "
                     "LEFT JOIN INVENTORY i ON p.product_id = i.product_id "
                     "WHERE p.supplier_id = ? ORDER BY p.product_name ASC",
@@ -283,6 +350,8 @@ async def user_dashboard(request: Request):
 
     return templates.TemplateResponse(request=request, name="user_dashboard.html", context={
         "user": user,
+        "error": error,
+        "success": success,
         "my_orders": my_orders,
         "product_count": product_count,
         "available_products": available_products,
@@ -355,6 +424,358 @@ async def user_place_order(request: Request):
         conn.close()
 
     return RedirectResponse(url="/user-dashboard?success=Order+placed+successfully", status_code=303)
+
+
+@app.get("/cart", response_class=HTMLResponse)
+async def cart_page(request: Request):
+    check = require_login(request)
+    if check:
+        return check
+
+    user = get_session_user(request)
+    error = request.query_params.get("error", "")
+    success = request.query_params.get("success", "")
+
+    conn = database.get_connection()
+    if conn is None:
+        return HTMLResponse("DB Connection Failed", status_code=500)
+
+    cursor = conn.cursor()
+    try:
+        cart_items, cart_total, cart_units = fetch_cart_rows(cursor, user["user_id"])
+    except Exception as e:
+        print(f"Error loading cart: {e}")
+        cart_items = []
+        cart_total = 0.0
+        cart_units = 0
+    finally:
+        cursor.close()
+        conn.close()
+
+    return templates.TemplateResponse(request=request, name="cart.html", context={
+        "user": user,
+        "error": error,
+        "success": success,
+        "cart_items": cart_items,
+        "cart_total": cart_total,
+        "cart_units": cart_units,
+    })
+
+
+@app.post("/cart/add")
+async def add_to_cart(request: Request):
+    check = require_login(request)
+    if check:
+        return check
+
+    user = get_session_user(request)
+    form = await request.form()
+    try:
+        product_id = int(form.get("product_id", "0"))
+        quantity = int(form.get("quantity", "1"))
+    except ValueError:
+        return RedirectResponse(url="/user-dashboard?error=Invalid+cart+item", status_code=303)
+
+    if product_id <= 0 or quantity <= 0:
+        return RedirectResponse(url="/user-dashboard?error=Invalid+cart+item", status_code=303)
+
+    conn = database.get_connection()
+    if conn is None:
+        return RedirectResponse(url="/user-dashboard?error=Database+Error", status_code=303)
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT p.product_name, COALESCE(i.current_stock, 0) AS current_stock "
+            "FROM PRODUCTS p "
+            "LEFT JOIN INVENTORY i ON i.product_id = p.product_id "
+            "WHERE p.product_id = ?",
+            (product_id,)
+        )
+        product = cursor.fetchone()
+        if not product:
+            return RedirectResponse(url="/user-dashboard?error=Product+not+found", status_code=303)
+
+        cursor.execute(
+            "SELECT quantity FROM CART_ITEMS WHERE user_id = ? AND product_id = ?",
+            (user["user_id"], product_id)
+        )
+        existing_item = cursor.fetchone()
+        existing_qty = int(existing_item["quantity"]) if existing_item else 0
+        desired_qty = existing_qty + quantity
+
+        if desired_qty > int(product["current_stock"] or 0):
+            return RedirectResponse(url="/user-dashboard?error=Not+enough+stock+available", status_code=303)
+
+        cursor.execute(
+            "INSERT INTO CART_ITEMS (user_id, product_id, quantity) VALUES (?, ?, ?) "
+            "ON CONFLICT(user_id, product_id) DO UPDATE SET quantity = excluded.quantity, updated_at = datetime('now')",
+            (user["user_id"], product_id, desired_qty)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"Error adding cart item: {e}")
+        conn.rollback()
+        return RedirectResponse(url="/user-dashboard?error=Failed+to+add+to+cart", status_code=303)
+    finally:
+        cursor.close()
+        conn.close()
+
+    return RedirectResponse(url="/user-dashboard?success=Added+to+cart", status_code=303)
+
+
+@app.post("/cart/update")
+async def update_cart_item(request: Request):
+    check = require_login(request)
+    if check:
+        return check
+
+    user = get_session_user(request)
+    form = await request.form()
+    try:
+        product_id = int(form.get("product_id", "0"))
+        quantity = int(form.get("quantity", "1"))
+    except ValueError:
+        return RedirectResponse(url="/cart?error=Invalid+cart+item", status_code=303)
+
+    if product_id <= 0:
+        return RedirectResponse(url="/cart?error=Invalid+cart+item", status_code=303)
+
+    conn = database.get_connection()
+    if conn is None:
+        return RedirectResponse(url="/cart?error=Database+Error", status_code=303)
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT COALESCE(i.current_stock, 0) AS current_stock "
+            "FROM PRODUCTS p LEFT JOIN INVENTORY i ON i.product_id = p.product_id "
+            "WHERE p.product_id = ?",
+            (product_id,)
+        )
+        product = cursor.fetchone()
+        if not product:
+            return RedirectResponse(url="/cart?error=Product+not+found", status_code=303)
+
+        if quantity <= 0:
+            cursor.execute(
+                "DELETE FROM CART_ITEMS WHERE user_id = ? AND product_id = ?",
+                (user["user_id"], product_id)
+            )
+            conn.commit()
+            return RedirectResponse(url="/cart?success=Item+removed+from+cart", status_code=303)
+
+        if quantity > int(product["current_stock"] or 0):
+            return RedirectResponse(url="/cart?error=Not+enough+stock+available", status_code=303)
+
+        cursor.execute(
+            "UPDATE CART_ITEMS SET quantity = ?, updated_at = datetime('now') "
+            "WHERE user_id = ? AND product_id = ?",
+            (quantity, user["user_id"], product_id)
+        )
+        if cursor.rowcount <= 0:
+            return RedirectResponse(url="/cart?error=Item+not+found+in+cart", status_code=303)
+
+        conn.commit()
+    except Exception as e:
+        print(f"Error updating cart item: {e}")
+        conn.rollback()
+        return RedirectResponse(url="/cart?error=Failed+to+update+cart", status_code=303)
+    finally:
+        cursor.close()
+        conn.close()
+
+    return RedirectResponse(url="/cart", status_code=303)
+
+
+@app.post("/cart/remove")
+async def remove_cart_item(request: Request):
+    check = require_login(request)
+    if check:
+        return check
+
+    user = get_session_user(request)
+    form = await request.form()
+    try:
+        product_id = int(form.get("product_id", "0"))
+    except ValueError:
+        return RedirectResponse(url="/cart?error=Invalid+cart+item", status_code=303)
+
+    if product_id <= 0:
+        return RedirectResponse(url="/cart?error=Invalid+cart+item", status_code=303)
+
+    conn = database.get_connection()
+    if conn is None:
+        return RedirectResponse(url="/cart?error=Database+Error", status_code=303)
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "DELETE FROM CART_ITEMS WHERE user_id = ? AND product_id = ?",
+            (user["user_id"], product_id)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"Error removing cart item: {e}")
+        conn.rollback()
+        return RedirectResponse(url="/cart?error=Failed+to+remove+item", status_code=303)
+    finally:
+        cursor.close()
+        conn.close()
+
+    return RedirectResponse(url="/cart?success=Item+removed+from+cart", status_code=303)
+
+
+@app.get("/cart/checkout", response_class=HTMLResponse)
+async def cart_checkout_page(request: Request):
+    check = require_login(request)
+    if check:
+        return check
+
+    user = get_session_user(request)
+    error = request.query_params.get("error", "")
+    success = request.query_params.get("success", "")
+
+    conn = database.get_connection()
+    if conn is None:
+        return HTMLResponse("DB Connection Failed", status_code=500)
+
+    cursor = conn.cursor()
+    try:
+        cart_items, cart_total, cart_units = fetch_cart_rows(cursor, user["user_id"])
+        if not cart_items:
+            return RedirectResponse(url="/cart?error=Your+cart+is+empty", status_code=303)
+    except Exception as e:
+        print(f"Error loading cart checkout page: {e}")
+        cart_items = []
+        cart_total = 0.0
+        cart_units = 0
+    finally:
+        cursor.close()
+        conn.close()
+
+    return templates.TemplateResponse(request=request, name="cart_checkout.html", context={
+        "user": user,
+        "error": error,
+        "success": success,
+        "cart_items": cart_items,
+        "cart_total": cart_total,
+        "cart_units": cart_units,
+    })
+
+
+@app.post("/cart/checkout")
+async def checkout_cart(request: Request):
+    check = require_login(request)
+    if check:
+        return check
+
+    user = get_session_user(request)
+    form = await request.form()
+    customer_name = form.get("customer_name", "").strip()
+    delivery_address = form.get("delivery_address", "").strip()
+    contact_phone = form.get("contact_phone", "").strip()
+    contact_email = form.get("contact_email", "").strip()
+    order_notes = form.get("order_notes", "").strip()
+
+    if not customer_name:
+        customer_name = user["full_name"]
+    if not contact_email:
+        contact_email = user["email"]
+
+    if not customer_name or not delivery_address or not contact_phone or not contact_email:
+        msg = quote_plus("Please fill all required checkout fields.")
+        return RedirectResponse(url=f"/cart/checkout?error={msg}", status_code=303)
+
+    conn = database.get_connection()
+    if conn is None:
+        return RedirectResponse(url="/cart/checkout?error=Database+Error", status_code=303)
+
+    cursor = conn.cursor()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cart_items, _, _ = fetch_cart_rows(cursor, user["user_id"])
+        if not cart_items:
+            conn.rollback()
+            return RedirectResponse(url="/cart?error=Your+cart+is+empty", status_code=303)
+
+        for item in cart_items:
+            if int(item["current_stock"] or 0) < int(item["quantity"] or 0):
+                conn.rollback()
+                msg = quote_plus(f"Not enough stock for {item['product_name']}")
+                return RedirectResponse(url=f"/cart/checkout?error={msg}", status_code=303)
+
+        cursor.execute(
+            "INSERT INTO ORDERS (requested_by, order_type, status, customer_name, delivery_address, contact_phone, contact_email, order_notes) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (user["user_id"], "Cart", "PENDING", customer_name, delivery_address, contact_phone, contact_email, order_notes or None)
+        )
+        order_id = cursor.lastrowid
+
+        for item in cart_items:
+            cursor.execute(
+                "INSERT INTO ORDER_ITEMS (order_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?)",
+                (order_id, item["product_id"], item["quantity"], item["selling_price"])
+            )
+            cursor.execute(
+                "UPDATE INVENTORY SET current_stock = current_stock - ? WHERE product_id = ?",
+                (item["quantity"], item["product_id"])
+            )
+
+        cursor.execute("DELETE FROM CART_ITEMS WHERE user_id = ?", (user["user_id"],))
+        conn.commit()
+    except Exception as e:
+        print(f"Error checking out cart: {e}")
+        conn.rollback()
+        return RedirectResponse(url="/cart/checkout?error=Failed+to+checkout+cart", status_code=303)
+    finally:
+        cursor.close()
+        conn.close()
+
+    return RedirectResponse(url="/recent-orders?success=Order+placed+successfully", status_code=303)
+
+
+@app.get("/recent-orders", response_class=HTMLResponse)
+async def recent_orders(request: Request):
+    check = require_login(request)
+    if check:
+        return check
+
+    user = get_session_user(request)
+    error = request.query_params.get("error", "")
+    success = request.query_params.get("success", "")
+    conn = database.get_connection()
+    if conn is None:
+        return HTMLResponse("DB Connection Failed", status_code=500)
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT o.order_id, o.order_date, o.status, o.order_type, o.customer_name, "
+            "o.delivery_address, o.contact_phone, o.contact_email, o.order_notes, o.archived, "
+            "oi.item_id, oi.product_id, p.product_name, p.category, "
+            "oi.quantity, oi.unit_price, (oi.quantity * oi.unit_price) AS line_total "
+            "FROM ORDERS o "
+            "LEFT JOIN ORDER_ITEMS oi ON oi.order_id = o.order_id "
+            "LEFT JOIN PRODUCTS p ON p.product_id = oi.product_id "
+            "WHERE o.requested_by = ? "
+            "ORDER BY o.order_date DESC, o.order_id DESC, oi.item_id ASC",
+            (user["user_id"],)
+        )
+        recent_orders = group_order_rows(cursor.fetchall())
+    except Exception as e:
+        print(f"Error loading recent orders: {e}")
+        recent_orders = []
+    finally:
+        cursor.close()
+        conn.close()
+
+    return templates.TemplateResponse(request=request, name="recent_orders.html", context={
+        "user": user,
+        "recent_orders": recent_orders,
+        "error": error,
+        "success": success,
+    })
 
 
 # ---------- USERS (admin only) ----------

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Checkout | IMS{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4">
+    <div class="col">
+        <h2 class="mb-1">Checkout</h2>
+        <p class="text-muted mb-0">Confirm your delivery details before placing the order.</p>
+    </div>
+    <div class="col-auto">
+        <a href="/cart" class="btn btn-outline-primary">Back to Cart</a>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    {{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    {{ success }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-3">Delivery Details</h5>
+                <form action="/cart/checkout" method="POST">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Name</label>
+                        <input type="text" name="customer_name" class="form-control" value="{{ user.full_name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Email</label>
+                        <input type="email" name="contact_email" class="form-control" value="{{ user.email }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Phone Number</label>
+                        <input type="text" name="contact_phone" class="form-control" placeholder="e.g. +1-555-0100" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Address</label>
+                        <textarea name="delivery_address" class="form-control" rows="4" placeholder="Street, City, State" required></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold">Notes (optional)</label>
+                        <textarea name="order_notes" class="form-control" rows="3" placeholder="Delivery instructions or notes"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 py-2">Place Order</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <h5 class="fw-bold mb-3">Order Summary</h5>
+                <div class="d-flex justify-content-between text-muted mb-2">
+                    <span>Items</span>
+                    <span>{{ cart_units }}</span>
+                </div>
+                <div class="d-flex justify-content-between text-muted mb-3">
+                    <span>Total</span>
+                    <span>${{ "%.2f"|format(cart_total|float) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th class="ps-3">Item</th>
+                                <th class="text-end pe-3">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in cart_items %}
+                            <tr>
+                                <td class="ps-3">
+                                    <div class="fw-semibold">{{ item.product_name }}</div>
+                                    <div class="text-muted small">Qty {{ item.quantity }} x ${{ "%.2f"|format(item.selling_price|float) }}</div>
+                                </td>
+                                <td class="text-end pe-3 fw-semibold">${{ "%.2f"|format(item.line_total|float) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

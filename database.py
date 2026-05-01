@@ -54,6 +54,11 @@ CREATE TABLE IF NOT EXISTS ORDERS (
     order_date TEXT DEFAULT (datetime('now')),
     status TEXT DEFAULT 'PENDING',
     order_type TEXT,
+    customer_name TEXT,
+    delivery_address TEXT,
+    contact_phone TEXT,
+    contact_email TEXT,
+    order_notes TEXT,
     archived INTEGER DEFAULT 0,
     FOREIGN KEY (requested_by) REFERENCES USERS(user_id) ON DELETE CASCADE
 );
@@ -67,12 +72,33 @@ CREATE TABLE IF NOT EXISTS ORDER_ITEMS (
     FOREIGN KEY (order_id) REFERENCES ORDERS(order_id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES PRODUCTS(product_id)
 );
+
+CREATE TABLE IF NOT EXISTS CART_ITEMS (
+    cart_item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE (user_id, product_id),
+    FOREIGN KEY (user_id) REFERENCES USERS(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES PRODUCTS(product_id) ON DELETE CASCADE
+);
 """
 
 
 def hash_password(password):
     ## simple sha256 hash for storing passwords
     return hashlib.sha256(password.encode()).hexdigest()
+
+
+SEED_USER_PASSWORDS = {
+    "ahnaf@example.com": hash_password("admin123"),
+    "contact@gtl.com": hash_password("supplier123"),
+    "sales@nexus.com": hash_password("supplier123"),
+    "jane@retail.com": hash_password("user123"),
+    "john@gmail.com": hash_password("user123"),
+}
 
 
 ## some starter data so the app isnt empty when you first run it
@@ -120,6 +146,50 @@ INSERT OR IGNORE INTO ORDER_ITEMS (order_id, product_id, quantity, unit_price) V
 """
 
 
+def ensure_schema(conn):
+    ## upgrades older databases in place so registration/login keep working
+    cursor = conn.cursor()
+    try:
+        conn.executescript(SETUP_TABLES)
+
+        cursor.execute("PRAGMA table_info(USERS)")
+        user_columns = {row[1] for row in cursor.fetchall()}
+        if "password" not in user_columns:
+            cursor.execute("ALTER TABLE USERS ADD COLUMN password TEXT")
+
+        cursor.execute("PRAGMA table_info(ORDERS)")
+        order_columns = {row[1] for row in cursor.fetchall()}
+        for column_name in ("customer_name", "delivery_address", "contact_phone", "contact_email", "order_notes"):
+            if column_name not in order_columns:
+                cursor.execute(f"ALTER TABLE ORDERS ADD COLUMN {column_name} TEXT")
+        if "archived" not in order_columns:
+            cursor.execute("ALTER TABLE ORDERS ADD COLUMN archived INTEGER DEFAULT 0")
+
+        conn.executescript(get_seed_data())
+
+        for email, password_hash in SEED_USER_PASSWORDS.items():
+            cursor.execute(
+                "UPDATE USERS SET password = ? WHERE email = ? AND (password IS NULL OR password = '')",
+                (password_hash, email)
+            )
+
+        cursor.execute("UPDATE ORDERS SET archived = COALESCE(archived, 0)")
+
+        cursor.execute(
+            "INSERT INTO SUPPLIERS (user_id) "
+            "SELECT u.user_id FROM USERS u "
+            "WHERE u.role = 'Supplier' "
+            "AND NOT EXISTS (SELECT 1 FROM SUPPLIERS s WHERE s.user_id = u.user_id)"
+        )
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+
 def init_db():
     ## creates the tables and puts in the seed data
     conn = sqlite3.connect(DB_PATH)
@@ -139,5 +209,6 @@ def get_connection():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row  ## so we can access columns by name
     conn.execute("PRAGMA foreign_keys = ON")
+    ensure_schema(conn)
     print("[DB] Connected to SQLite database.")
     return conn

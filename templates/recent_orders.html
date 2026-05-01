@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Recent Orders | IMS{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    {{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    {{ success }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+<div class="row align-items-center mb-4">
+    <div class="col">
+        <h2 class="mb-1">Recent Orders</h2>
+    </div>
+    <div class="col-auto">
+        <a href="/user-dashboard" class="btn btn-outline-primary">Back to Dashboard</a>
+    </div>
+</div>
+
+<div class="row g-4">
+    {% if recent_orders %}
+        {% for order in recent_orders %}
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 py-3">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div>
+                            <h5 class="mb-1 fw-bold">Order #{{ order.order_id }}</h5>
+                            <div class="text-muted small">{{ order.order_date }} · {{ order.order_type or 'Standard' }}</div>
+                            <div class="text-muted small mt-1">
+                                {{ order.customer_name or user.full_name }}
+                                {% if order.contact_phone %} · {{ order.contact_phone }}{% endif %}
+                                {% if order.contact_email %} · {{ order.contact_email }}{% endif %}
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <div class="fw-bold text-success">${{ "%.2f"|format(order.total_amount|float) }}</div>
+                            <div class="d-flex gap-2 justify-content-end mt-2 flex-wrap">
+                                {% if order.archived and order.archived|int == 1 %}
+                                    <span class="badge bg-secondary">ARCHIVED</span>
+                                {% endif %}
+                                {% if order.status == 'PENDING' %}
+                                    <span class="badge bg-warning text-dark">PENDING</span>
+                                {% elif order.status == 'CONFIRMED' %}
+                                    <span class="badge bg-success">CONFIRMED</span>
+                                {% elif order.status == 'SHIPPED' %}
+                                    <span class="badge bg-info text-white">SHIPPED</span>
+                                {% elif order.status == 'DELIVERED' %}
+                                    <span class="badge bg-success">DELIVERED</span>
+                                {% elif order.status == 'CANCELLED' %}
+                                    <span class="badge bg-danger">CANCELLED</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ order.status }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% if order.delivery_address or order.order_notes %}
+                <div class="card-body border-top bg-light-soft py-3">
+                    <div class="small text-muted">
+                        {% if order.delivery_address %}
+                            <div><strong>Address:</strong> {{ order.delivery_address }}</div>
+                        {% endif %}
+                        {% if order.order_notes %}
+                            <div><strong>Notes:</strong> {{ order.order_notes }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="ps-4">Product</th>
+                                    <th>Category</th>
+                                    <th>Qty</th>
+                                    <th>Unit Price</th>
+                                    <th>Line Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if order.line_items %}
+                                    {% for item in order.line_items %}
+                                    <tr>
+                                        <td class="ps-4 fw-semibold">{{ item.product_name }}</td>
+                                        <td><span class="badge bg-light text-dark border">{{ item.category or 'N/A' }}</span></td>
+                                        <td>{{ item.quantity }}</td>
+                                        <td>${{ "%.2f"|format(item.unit_price|float) }}</td>
+                                        <td class="fw-bold">${{ "%.2f"|format(item.line_total|float) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-4">No items were recorded for this order.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-0 py-3 d-flex justify-content-between text-muted small">
+                    <span>Items: {{ order.item_count }}</span>
+                    <span>Archived: {{ 'Yes' if order.archived and order.archived|int == 1 else 'No' }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center text-muted py-5">
+                    You have not placed any orders yet.
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
