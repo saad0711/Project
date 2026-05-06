@@ -60,7 +60,21 @@ CREATE TABLE IF NOT EXISTS ORDERS (
     contact_email TEXT,
     order_notes TEXT,
     archived INTEGER DEFAULT 0,
+    confirmed_at TEXT,
+    packed_at TEXT,
+    shipped_at TEXT,
+    delivered_at TEXT,
     FOREIGN KEY (requested_by) REFERENCES USERS(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ORDER_STATUS_HISTORY (
+    history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    changed_at TEXT DEFAULT (datetime('now')),
+    changed_by INTEGER,
+    FOREIGN KEY (order_id) REFERENCES ORDERS(order_id) ON DELETE CASCADE,
+    FOREIGN KEY (changed_by) REFERENCES USERS(user_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS ORDER_ITEMS (
@@ -164,6 +178,9 @@ def ensure_schema(conn):
                 cursor.execute(f"ALTER TABLE ORDERS ADD COLUMN {column_name} TEXT")
         if "archived" not in order_columns:
             cursor.execute("ALTER TABLE ORDERS ADD COLUMN archived INTEGER DEFAULT 0")
+        for ts_col in ("confirmed_at", "packed_at", "shipped_at", "delivered_at"):
+            if ts_col not in order_columns:
+                cursor.execute(f"ALTER TABLE ORDERS ADD COLUMN {ts_col} TEXT")
 
         conn.executescript(get_seed_data())
 
@@ -206,8 +223,10 @@ def get_connection():
         print("[DB] No database found, creating a fresh one with sample data...")
         init_db()
 
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=10)
     conn.row_factory = sqlite3.Row  ## so we can access columns by name
+    conn.execute("PRAGMA journal_mode = WAL")   ## allows concurrent readers + 1 writer across processes
+    conn.execute("PRAGMA busy_timeout = 10000") ## wait up to 10s instead of immediately failing
     conn.execute("PRAGMA foreign_keys = ON")
     ensure_schema(conn)
     print("[DB] Connected to SQLite database.")

@@ -1,148 +1,451 @@
 {% extends "base.html" %}
-
 {% block title %}Manage Orders | IMS{% endblock %}
 
 {% block content %}
 <style>
-    .action-btn {
-        width: 2.1rem;
-        height: 2.1rem;
-        border-radius: 999px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1rem;
-        font-weight: 700;
-        line-height: 1;
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
-        border: none;
-    }
-    .action-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.16);
-    }
-    .action-btn-approve {
-        background: #1f9d55;
-        color: #ffffff;
-    }
-    .action-btn-decline {
-        background: #d64545;
-        color: #ffffff;
-    }
+  .analytics-card { border-radius: 16px; padding: 1.4rem 1.6rem; color: #fff; position: relative; overflow: hidden; }
+  .analytics-card::after { content: ''; position: absolute; top: -20px; right: -20px; width: 90px; height: 90px; border-radius: 50%; background: rgba(255,255,255,0.12); }
+  .analytics-card .card-icon { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.75; margin-bottom: 6px; }
+  .analytics-card .card-value { font-size: 1.9rem; font-weight: 800; font-family: 'Outfit', sans-serif; line-height: 1.1; }
+  .analytics-card .card-label { font-size: 0.78rem; opacity: 0.85; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+  .ac-blue   { background: linear-gradient(135deg, #4f8ef7, #2563eb); }
+  .ac-amber  { background: linear-gradient(135deg, #f59e0b, #d97706); }
+  .ac-green  { background: linear-gradient(135deg, #10b981, #059669); }
+  .ac-purple { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+
+  .filter-bar { background: #fff; border-radius: 14px; padding: 1.1rem 1.4rem; box-shadow: 0 1px 8px rgba(0,0,0,0.07); margin-bottom: 1.4rem; }
+  .filter-bar .form-control, .filter-bar .form-select { border-radius: 8px; font-size: 0.88rem; border-color: #e2e8f0; }
+
+  .orders-card { background: #fff; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); overflow: hidden; }
+  .orders-card table thead th { background: #f8fafc; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: 700; padding: 0.9rem 0.8rem; border-bottom: 1px solid #e2e8f0; }
+  .orders-card table tbody td { padding: 0.85rem 0.8rem; vertical-align: middle; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+  .orders-card table tbody tr:hover { background: #f8faff; }
+  .orders-card table tbody tr:last-child td { border-bottom: none; }
+
+  .badge-pending   { background: #fef3c7; color: #92400e; }
+  .badge-confirmed { background: #dbeafe; color: #1e40af; }
+  .badge-packed    { background: #f3e8ff; color: #6b21a8; }
+  .badge-shipped   { background: #e0f2fe; color: #0369a1; }
+  .badge-delivered { background: #d1fae5; color: #065f46; }
+  .badge-cancelled { background: #fee2e2; color: #991b1b; }
+  .status-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+
+  .wf-btn { font-size: 0.78rem; font-weight: 600; border-radius: 8px; padding: 4px 12px; border: none; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .wf-btn:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,0.15); }
+  .wf-confirm { background: #dbeafe; color: #1e40af; }
+  .wf-pack    { background: #f3e8ff; color: #6b21a8; }
+  .wf-ship    { background: #e0f2fe; color: #0369a1; }
+  .wf-deliver { background: #d1fae5; color: #065f46; }
+  .wf-cancel  { background: #fee2e2; color: #991b1b; }
+  .wf-archive { background: #f1f5f9; color: #64748b; }
+
+  .order-id-link { font-weight: 700; color: #2563eb; background: #eff6ff; border: none; border-radius: 6px; padding: 3px 8px; font-size: 0.85rem; cursor: pointer; }
+  .order-id-link:hover { background: #dbeafe; color: #1d4ed8; }
+
+  #bulkBar { display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: calc(100% - 60px); max-width: 860px; background: #1e293b; color: #fff; border-radius: 14px; padding: 0.9rem 1.4rem; box-shadow: 0 8px 30px rgba(0,0,0,0.3); z-index: 1050; align-items: center; gap: 1rem; }
+  #bulkBar.visible { display: flex; }
+  #bulkBar select { border-radius: 8px; font-size: 0.85rem; }
+
+  .detail-modal .modal-content { border-radius: 18px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .detail-modal .modal-header { border-radius: 18px 18px 0 0; background: linear-gradient(135deg, #2563eb, #4f46e5); color: #fff; border: none; padding: 1.3rem 1.6rem; }
+  .detail-section { background: #f8fafc; border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+  .detail-section h6 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; font-weight: 700; margin-bottom: 0.7rem; }
+  .timeline-item { display: flex; gap: 0.8rem; padding: 0.5rem 0; font-size: 0.85rem; align-items: flex-start; }
+  .timeline-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+  .items-table th { font-size: 0.78rem; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; padding: 0.5rem 0.4rem; }
+  .items-table td { font-size: 0.87rem; padding: 0.55rem 0.4rem; border-bottom: 1px solid #f1f5f9; }
 </style>
 
-<div class="row mb-5 align-items-center">
-    <div class="col-lg-6">
-        <h2 class="mb-1">Manage Orders</h2>
-        <p class="text-muted">Approve, decline or ship orders from here.</p>
-    </div>
-    <div class="col-lg-6 text-lg-end">
-        <form method="get" action="/manage-orders" class="d-inline-flex gap-2 align-items-end">
-            <div class="text-start">
-                <label for="sort_by" class="form-label fw-bold small mb-1">Sort By</label>
-                <select id="sort_by" name="sort_by" class="form-select form-select-sm shadow-sm">
-                    {% for option in sort_options %}
-                        <option value="{{ option.value }}" {% if option.value == current_sort %}selected{% endif %}>
-                            {{ option.label }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <button type="submit" class="btn btn-outline-primary btn-sm px-3 py-2">Apply</button>
-        </form>
-    </div>
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-start mb-4 pt-2">
+  <div>
+    <h2 class="mb-1">Manage Orders</h2>
+    <p class="text-muted mb-0">Full order lifecycle management &mdash; approve, track, and deliver.</p>
+  </div>
 </div>
 
-<div class="table-container">
-    <table class="table table-hover">
-        <thead>
-            <tr>
-                <th>Order ID</th>
-                <th>Customer</th>
-                <th>Date</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th class="text-center">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% if orders %}
-                {% for o in orders %}
-                <tr>
-                    <td class="fw-bold">#{{ o.order_id }}</td>
-                    <td>
-                        <div class="fw-semibold">{{ o.customer_name }}</div>
-                        <div class="text-muted small">UID: {{ o.customer_id }}</div>
-                    </td>
-                    <td class="text-muted small">{{ o.order_date }}</td>
-                    <td class="fw-bold text-primary">${{ "%.2f"|format(o.total_amount|float) }}</td>
-                    <td>
-                        {% if o.status == 'PENDING' %}
-                            <span class="badge bg-warning text-dark">PENDING</span>
-                        {% elif o.status == 'CONFIRMED' %}
-                            <span class="badge bg-success">CONFIRMED</span>
-                        {% elif o.status == 'SHIPPED' %}
-                            <span class="badge bg-info text-white">SHIPPED</span>
-                        {% elif o.status == 'DELIVERED' %}
-                            <span class="badge bg-success">DELIVERED</span>
-                        {% elif o.status == 'CANCELLED' %}
-                            <span class="badge bg-danger">CANCELLED</span>
-                        {% else %}
-                            <span class="badge bg-secondary">{{ o.status }}</span>
-                        {% endif %}
-                    </td>
-                    <td class="text-center">
-                        {% if o.status == 'PENDING' %}
-                            <div class="d-inline-flex gap-2">
-                                <form action="/update-order-status" method="POST" class="d-inline">
-                                    <input type="hidden" name="order_id" value="{{ o.order_id }}">
-                                    <input type="hidden" name="new_status" value="CONFIRMED">
-                                    <input type="hidden" name="redirect_to" value="/manage-orders">
-                                    <input type="hidden" name="sort_by" value="{{ current_sort }}">
-                                    <button type="submit" class="action-btn action-btn-approve" title="Approve">&check;</button>
-                                </form>
-                                <form action="/update-order-status" method="POST" class="d-inline">
-                                    <input type="hidden" name="order_id" value="{{ o.order_id }}">
-                                    <input type="hidden" name="new_status" value="CANCELLED">
-                                    <input type="hidden" name="redirect_to" value="/manage-orders">
-                                    <input type="hidden" name="sort_by" value="{{ current_sort }}">
-                                    <button type="submit" class="action-btn action-btn-decline" title="Decline">&times;</button>
-                                </form>
-                            </div>
-                        {% elif o.status == 'CONFIRMED' %}
-                            <form action="/update-order-status" method="POST" class="d-inline">
-                                <input type="hidden" name="order_id" value="{{ o.order_id }}">
-                                <input type="hidden" name="new_status" value="SHIPPED">
-                                <input type="hidden" name="redirect_to" value="/manage-orders">
-                                <input type="hidden" name="sort_by" value="{{ current_sort }}">
-                                <button type="submit" class="btn btn-sm btn-info text-white">Ship</button>
-                            </form>
-                        {% elif o.status == 'SHIPPED' %}
-                            <form action="/update-order-status" method="POST" class="d-inline">
-                                <input type="hidden" name="order_id" value="{{ o.order_id }}">
-                                <input type="hidden" name="new_status" value="DELIVERED">
-                                <input type="hidden" name="redirect_to" value="/manage-orders">
-                                <input type="hidden" name="sort_by" value="{{ current_sort }}">
-                                <button type="submit" class="btn btn-sm btn-success text-white">Deliver</button>
-                            </form>
-                        {% else %}
-                            <form action="/orders/archive" method="POST" class="d-inline" onsubmit="return confirm('Archive order #{{ o.order_id }}? It will be hidden from all active views.');">
-                                <input type="hidden" name="order_id" value="{{ o.order_id }}">
-                                <input type="hidden" name="sort_by" value="{{ current_sort }}">
-                                <button type="submit" class="btn btn-sm btn-outline-secondary">Archive</button>
-                            </form>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            {% else %}
-                <tr>
-                    <td colspan="6" class="text-center text-muted py-5">
-                        <em>No orders found.</em>
-                    </td>
-                </tr>
-            {% endif %}
-        </tbody>
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+  {{ error }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+{% if success %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  {{ success }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<!-- Analytics Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="analytics-card ac-blue">
+      <div class="card-icon">Today</div>
+      <div class="card-value">{{ analytics.orders_today }}</div>
+      <div class="card-label">Orders Today</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="analytics-card ac-amber">
+      <div class="card-icon">Action Needed</div>
+      <div class="card-value">{{ analytics.pending_count }}</div>
+      <div class="card-label">Pending</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="analytics-card ac-green">
+      <div class="card-icon">Revenue</div>
+      <div class="card-value">${{ "%.0f"|format(analytics.total_revenue|float) }}</div>
+      <div class="card-label">Total Revenue</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="analytics-card ac-purple">
+      <div class="card-icon">Best Seller</div>
+      <div class="card-value" style="font-size: 1.05rem; line-height: 1.3;">{{ analytics.top_product }}</div>
+      <div class="card-label">Top Product</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <form method="get" action="/manage-orders" id="filterForm">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label text-muted small fw-bold mb-1">Search</label>
+        <input type="text" name="q" class="form-control" placeholder="Order ID or customer name..." value="{{ q }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label text-muted small fw-bold mb-1">Status</label>
+        <select name="status" class="form-select">
+          <option value="">All Statuses</option>
+          {% for s in [('PENDING','Pending'),('CONFIRMED','Confirmed'),('PACKED','Packed'),('SHIPPED','Shipped'),('DELIVERED','Delivered'),('CANCELLED','Cancelled'),('ARCHIVED','Archived Orders')] %}
+          <option value="{{ s[0] }}" {% if status_filter == s[0] %}selected{% endif %}>{{ s[1] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label text-muted small fw-bold mb-1">From Date</label>
+        <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label text-muted small fw-bold mb-1">To Date</label>
+        <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label text-muted small fw-bold mb-1">Sort By</label>
+        <select name="sort_by" class="form-select">
+          {% for option in sort_options %}
+          <option value="{{ option.value }}" {% if option.value == current_sort %}selected{% endif %}>{{ option.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1 d-flex gap-1">
+        <button type="submit" class="btn btn-primary btn-sm w-100">Apply</button>
+        <a href="/manage-orders" class="btn btn-outline-secondary btn-sm px-2" title="Clear filters">x</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Hidden bulk form — populated by JS on submit -->
+<form id="bulkForm" action="/bulk-update-orders" method="POST" style="display:none;">
+  <input type="hidden" name="sort_by" value="{{ current_sort }}">
+  <input type="hidden" name="new_status" id="bulkStatusHidden">
+</form>
+
+<!-- Orders Table -->
+<div class="orders-card">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th style="width: 36px;"><input type="checkbox" id="selectAll" title="Select all"></th>
+          <th>Order</th>
+          <th>Customer</th>
+          <th>Date</th>
+          <th>Items</th>
+          <th>Total</th>
+          <th>Status</th>
+          <th>Timestamps</th>
+          <th class="text-center">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if orders %}
+          {% for o in orders %}
+          <tr id="order-row-{{ o.order_id }}">
+            <td><input type="checkbox" value="{{ o.order_id }}" class="row-check"></td>
+            <td>
+              <button type="button" class="order-id-link" onclick="openDetail({{ o.order_id }})">#{{ o.order_id }}</button>
+            </td>
+            <td>
+              <div class="fw-semibold" style="font-size: 0.9rem;">{{ o.customer_name }}</div>
+              <div class="text-muted" style="font-size: 0.75rem;">UID {{ o.customer_id }}</div>
+            </td>
+            <td class="text-muted" style="font-size: 0.82rem;">{{ o.order_date[:16] if o.order_date else '—' }}</td>
+            <td class="fw-semibold text-center">{{ o.item_count }}</td>
+            <td class="fw-bold text-success">${{ "%.2f"|format(o.total_amount|float) }}</td>
+            <td>
+              {% if o.status == 'PENDING' %}
+                <span class="status-badge badge-pending">Pending</span>
+              {% elif o.status == 'CONFIRMED' %}
+                <span class="status-badge badge-confirmed">Confirmed</span>
+              {% elif o.status == 'PACKED' %}
+                <span class="status-badge badge-packed">Packed</span>
+              {% elif o.status == 'SHIPPED' %}
+                <span class="status-badge badge-shipped">Shipped</span>
+              {% elif o.status == 'DELIVERED' %}
+                <span class="status-badge badge-delivered">Delivered</span>
+              {% elif o.status == 'CANCELLED' %}
+                <span class="status-badge badge-cancelled">Cancelled</span>
+              {% else %}
+                <span class="status-badge" style="background: #f1f5f9; color: #475569;">{{ o.status }}</span>
+              {% endif %}
+            </td>
+            <td style="font-size: 0.72rem; color: #94a3b8; line-height: 1.7;">
+              {% if o.confirmed_at %}<div>Confirmed: {{ o.confirmed_at[:16] }}</div>{% endif %}
+              {% if o.packed_at %}<div>Packed: {{ o.packed_at[:16] }}</div>{% endif %}
+              {% if o.shipped_at %}<div>Shipped: {{ o.shipped_at[:16] }}</div>{% endif %}
+              {% if o.delivered_at %}<div>Delivered: {{ o.delivered_at[:16] }}</div>{% endif %}
+              {% if not o.confirmed_at and not o.packed_at and not o.shipped_at and not o.delivered_at %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              <div class="d-inline-flex gap-1 flex-wrap justify-content-center">
+              {% if o.archived %}
+                <a href="/orders/delete/{{ o.order_id }}?sort_by={{ current_sort }}" class="wf-btn wf-cancel" onclick="return confirm('Permanently delete order #{{ o.order_id }}? This cannot be undone.')">Delete Permanently</a>
+              {% elif o.status == 'PENDING' %}
+                <button type="button" class="wf-btn wf-confirm" onclick="postStatus({{ o.order_id }}, 'CONFIRMED')">Confirm</button>
+                <button type="button" class="wf-btn wf-cancel" onclick="postStatus({{ o.order_id }}, 'CANCELLED')">Cancel</button>
+              {% elif o.status == 'CONFIRMED' %}
+                <button type="button" class="wf-btn wf-pack" onclick="postStatus({{ o.order_id }}, 'PACKED')">Mark Packed</button>
+                <button type="button" class="wf-btn wf-cancel" onclick="postStatus({{ o.order_id }}, 'CANCELLED')">Cancel</button>
+              {% elif o.status == 'PACKED' %}
+                <button type="button" class="wf-btn wf-ship" onclick="postStatus({{ o.order_id }}, 'SHIPPED')">Ship</button>
+              {% elif o.status == 'SHIPPED' %}
+                <button type="button" class="wf-btn wf-deliver" onclick="postStatus({{ o.order_id }}, 'DELIVERED')">Mark Delivered</button>
+              {% else %}
+                <a href="/orders/archive/{{ o.order_id }}?sort_by={{ current_sort }}" class="wf-btn wf-archive" style="text-decoration:none;">Archive</a>
+              {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="9" class="text-center text-muted py-5">
+              <div class="fw-semibold mb-1">No orders found{% if q or status_filter or date_from or date_to %} matching your filters{% endif %}.</div>
+              {% if q or status_filter or date_from or date_to %}
+              <a href="/manage-orders" class="btn btn-sm btn-outline-secondary mt-2">Clear Filters</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
     </table>
 </div>
+
+<!-- Bulk Action Bar -->
+<div id="bulkBar">
+  <span id="bulkCount" class="fw-bold me-auto">0 orders selected</span>
+  <select id="bulkStatusSelect" class="form-select form-select-sm" style="width: auto;">
+    <option value="">Bulk Action</option>
+    <option value="PACKED">Mark as Packed</option>
+    <option value="SHIPPED">Mark as Shipped</option>
+    <option value="DELIVERED">Mark as Delivered</option>
+    <option value="CANCELLED">Cancel Orders</option>
+  </select>
+  <button type="button" class="btn btn-warning btn-sm fw-bold px-3" onclick="submitBulk()">Apply</button>
+  <button type="button" class="btn btn-outline-light btn-sm" onclick="clearAll()">Clear</button>
+</div>
+
+<!-- Order Detail Modal -->
+<div class="modal fade detail-modal" id="orderDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold" id="modalOrderTitle">Order Details</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-3" id="modalBody">
+        <div class="text-center py-5 text-muted">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---- Action Helpers (no nested forms needed) ---- */
+const CURRENT_SORT = '{{ current_sort }}';
+
+function postStatus(orderId, newStatus) {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/update-order-status';
+  form.innerHTML = `
+    <input type="hidden" name="order_id" value="${orderId}">
+    <input type="hidden" name="new_status" value="${newStatus}">
+    <input type="hidden" name="redirect_to" value="/manage-orders">
+    <input type="hidden" name="sort_by" value="${CURRENT_SORT}">
+  `;
+  document.body.appendChild(form);
+  form.submit();
+}
+
+function postAction(url, orderId, confirmMsg) {
+  if (confirmMsg && !confirm(confirmMsg)) return;
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = url;
+  form.innerHTML = `
+    <input type="hidden" name="order_id" value="${orderId}">
+    <input type="hidden" name="sort_by" value="${CURRENT_SORT}">
+  `;
+  document.body.appendChild(form);
+  form.submit();
+}
+
+/* ---- Bulk Selection ---- */
+const selectAll = document.getElementById('selectAll');
+const bulkBar   = document.getElementById('bulkBar');
+const bulkCount = document.getElementById('bulkCount');
+
+function updateBulkBar() {
+  const checked = document.querySelectorAll('.row-check:checked');
+  if (checked.length > 0) {
+    bulkBar.classList.add('visible');
+    bulkCount.textContent = checked.length + ' order' + (checked.length > 1 ? 's' : '') + ' selected';
+  } else {
+    bulkBar.classList.remove('visible');
+  }
+}
+
+function clearAll() {
+  document.querySelectorAll('.row-check').forEach(c => c.checked = false);
+  selectAll.checked = false;
+  updateBulkBar();
+}
+
+function submitBulk() {
+  const checked = document.querySelectorAll('.row-check:checked');
+  const status  = document.getElementById('bulkStatusSelect').value;
+  if (!checked.length || !status) return;
+
+  const form = document.getElementById('bulkForm');
+  /* remove any previously added order_ids */
+  form.querySelectorAll('input[name="order_ids"]').forEach(el => el.remove());
+  /* set the status */
+  document.getElementById('bulkStatusHidden').value = status;
+  /* add one hidden input per selected order */
+  checked.forEach(cb => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'order_ids'; inp.value = cb.value;
+    form.appendChild(inp);
+  });
+  form.submit();
+}
+
+selectAll.addEventListener('change', () => {
+  document.querySelectorAll('.row-check').forEach(c => c.checked = selectAll.checked);
+  updateBulkBar();
+});
+document.querySelectorAll('.row-check').forEach(c => c.addEventListener('change', updateBulkBar));
+
+/* ---- Order Detail Modal ---- */
+var detailModal;
+document.addEventListener('DOMContentLoaded', function() {
+  detailModal = new bootstrap.Modal(document.getElementById('orderDetailModal'));
+});
+
+const STATUS_COLORS = {
+  PENDING: '#f59e0b', CONFIRMED: '#3b82f6', PACKED: '#8b5cf6',
+  SHIPPED: '#0ea5e9', DELIVERED: '#10b981', CANCELLED: '#ef4444'
+};
+
+async function openDetail(orderId) {
+  document.getElementById('modalOrderTitle').textContent = 'Order #' + orderId;
+  document.getElementById('modalBody').innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Loading...</div>';
+  detailModal.show();
+
+  try {
+    const resp = await fetch('/order-detail/' + orderId);
+    const data = await resp.json();
+    if (data.error) {
+      document.getElementById('modalBody').innerHTML = '<div class="alert alert-danger">' + data.error + '</div>';
+      return;
+    }
+
+    const o = data.order;
+    const items = data.items;
+    const history = data.history;
+    const total = items.reduce((s, i) => s + parseFloat(i.line_total || 0), 0);
+
+    /* Customer & Delivery */
+    let custHtml = `
+      <div class="detail-section">
+        <h6>Customer &amp; Delivery</h6>
+        <div class="row g-2" style="font-size: 0.87rem;">
+          <div class="col-sm-6"><span class="text-muted">Account:</span> <strong>${o.full_name}</strong> (${o.email})</div>
+          <div class="col-sm-6"><span class="text-muted">Contact Name:</span> ${o.customer_name || '—'}</div>
+          <div class="col-sm-6"><span class="text-muted">Phone:</span> ${o.contact_phone || '—'}</div>
+          <div class="col-sm-6"><span class="text-muted">Email:</span> ${o.contact_email || '—'}</div>
+          <div class="col-12"><span class="text-muted">Address:</span> ${o.delivery_address || '—'}</div>
+          ${o.order_notes ? `<div class="col-12"><span class="text-muted">Notes:</span> ${o.order_notes}</div>` : ''}
+        </div>
+      </div>`;
+
+    /* Items Table */
+    let rowsHtml = items.map(i => `
+      <tr>
+        <td><strong>${i.product_name}</strong><br><span class="text-muted" style="font-size:0.75rem;">${i.category || ''}</span></td>
+        <td class="text-center">${i.quantity}</td>
+        <td>$${parseFloat(i.unit_price).toFixed(2)}</td>
+        <td class="fw-bold">$${parseFloat(i.line_total).toFixed(2)}</td>
+        <td style="font-size:0.78rem;color:#64748b;">${i.current_stock} in stock</td>
+      </tr>`).join('');
+
+    let itemsHtml = `
+      <div class="detail-section">
+        <h6>Ordered Items</h6>
+        <table class="table items-table mb-1">
+          <thead><tr><th>Product</th><th class="text-center">Qty</th><th>Unit Price</th><th>Line Total</th><th>Current Stock</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <div class="text-end fw-bold mt-1" style="font-size: 1rem;">Order Total: $${total.toFixed(2)}</div>
+      </div>`;
+
+    /* Status Timeline */
+    let timelineHtml = '<div class="detail-section"><h6>Status History</h6>';
+    if (history.length > 0) {
+      timelineHtml += history.map(h => {
+        const col = STATUS_COLORS[h.status] || '#94a3b8';
+        return `<div class="timeline-item">
+          <div class="timeline-dot" style="background:${col};"></div>
+          <div><strong style="color:${col};">${h.status}</strong> &mdash; ${h.changed_at ? h.changed_at.substring(0,16) : ''} <span class="text-muted">by ${h.changed_by}</span></div>
+        </div>`;
+      }).join('');
+    } else {
+      timelineHtml += `<div class="timeline-item">
+        <div class="timeline-dot" style="background:#94a3b8;"></div>
+        <div><strong style="color:#94a3b8;">PLACED</strong> &mdash; ${o.order_date ? o.order_date.substring(0,16) : ''}</div>
+      </div>`;
+    }
+    timelineHtml += '</div>';
+
+    /* Timestamps */
+    let tsRows = [
+      ['Confirmed', o.confirmed_at], ['Packed', o.packed_at],
+      ['Shipped', o.shipped_at], ['Delivered', o.delivered_at]
+    ].filter(r => r[1]).map(r => `<div class="col-6" style="font-size:0.84rem;"><span class="text-muted">${r[0]}:</span> ${r[1].substring(0,16)}</div>`).join('');
+    let tsHtml = tsRows ? `<div class="detail-section"><h6>Timestamps</h6><div class="row g-1">${tsRows}</div></div>` : '';
+
+    document.getElementById('modalBody').innerHTML = custHtml + itemsHtml + timelineHtml + tsHtml;
+  } catch(e) {
+    document.getElementById('modalBody').innerHTML = '<div class="alert alert-danger">Failed to load order details.</div>';
+  }
+}
+</script>
 {% endblock %}

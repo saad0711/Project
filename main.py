@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 import database
 from datetime import datetime
@@ -1299,6 +1299,10 @@ async def manage_orders(request: Request):
 
     user = get_session_user(request)
     sort_by = request.query_params.get("sort_by", "newest")
+    q = request.query_params.get("q", "").strip()
+    status_filter = request.query_params.get("status", "").strip().upper()
+    date_from = request.query_params.get("date_from", "").strip()
+    date_to = request.query_params.get("date_to", "").strip()
 
     conn = database.get_connection()
     if conn is None:
@@ -1309,22 +1313,91 @@ async def manage_orders(request: Request):
     sort_clause = SORT_SQL[current_sort]
 
     try:
+        ## build dynamic WHERE clause based on active filters
+        conditions = []
+        params = []
+
+        if status_filter == "ARCHIVED":
+            conditions.append("o.archived = 1")
+        else:
+            conditions.append("o.archived = 0")
+            if status_filter:
+                conditions.append("o.status = ?")
+                params.append(status_filter)
+
+        if q:
+            conditions.append("(CAST(o.order_id AS TEXT) LIKE ? OR u.full_name LIKE ?)")
+            params.extend([f"%{q}%", f"%{q}%"])
+
+        if date_from:
+            conditions.append("DATE(o.order_date) >= ?")
+            params.append(date_from)
+
+        if date_to:
+            conditions.append("DATE(o.order_date) <= ?")
+            params.append(date_to)
+
+        where_clause = " AND ".join(conditions)
+
         cursor.execute(
-            "SELECT o.order_id, o.requested_by AS customer_id, "
-            "u.full_name AS customer_name, o.order_date, o.status, "
-            "COALESCE((SELECT SUM(oi.quantity * oi.unit_price) "
-            " FROM ORDER_ITEMS oi WHERE oi.order_id = o.order_id), 0) AS total_amount, "
-            "COALESCE((SELECT COUNT(*) FROM ORDER_ITEMS oi "
-            " WHERE oi.order_id = o.order_id), 0) AS item_count "
-            "FROM ORDERS o "
-            "JOIN USERS u ON o.requested_by = u.user_id "
-            "WHERE o.archived = 0 "
-            f"ORDER BY {sort_clause}"
+            f"SELECT o.order_id, o.requested_by AS customer_id, "
+            f"u.full_name AS customer_name, o.order_date, o.status, o.archived, "
+            f"o.confirmed_at, o.packed_at, o.shipped_at, o.delivered_at, "
+            f"COALESCE((SELECT SUM(oi.quantity * oi.unit_price) "
+            f" FROM ORDER_ITEMS oi WHERE oi.order_id = o.order_id), 0) AS total_amount, "
+            f"COALESCE((SELECT COUNT(*) FROM ORDER_ITEMS oi "
+            f" WHERE oi.order_id = o.order_id), 0) AS item_count "
+            f"FROM ORDERS o "
+            f"JOIN USERS u ON o.requested_by = u.user_id "
+            f"WHERE {where_clause} "
+            f"ORDER BY {sort_clause}",
+            params
         )
         orders = rows_to_dicts(cursor.fetchall())
+
+        ## --- analytics queries ---
+        cursor.execute(
+            "SELECT COUNT(*) as cnt FROM ORDERS "
+            "WHERE DATE(order_date) = DATE('now') AND archived = 0"
+        )
+        orders_today = cursor.fetchone()["cnt"]
+
+        cursor.execute(
+            "SELECT COUNT(*) as cnt FROM ORDERS "
+            "WHERE status = 'PENDING' AND archived = 0"
+        )
+        pending_count = cursor.fetchone()["cnt"]
+
+        cursor.execute(
+            "SELECT COALESCE(SUM(oi.quantity * oi.unit_price), 0) as revenue "
+            "FROM ORDER_ITEMS oi "
+            "JOIN ORDERS o ON oi.order_id = o.order_id "
+            "WHERE o.status = 'DELIVERED' AND o.archived = 0"
+        )
+        total_revenue = cursor.fetchone()["revenue"] or 0
+
+        cursor.execute(
+            "SELECT p.product_name, SUM(oi.quantity) as total_sold "
+            "FROM ORDER_ITEMS oi "
+            "JOIN PRODUCTS p ON oi.product_id = p.product_id "
+            "JOIN ORDERS o ON oi.order_id = o.order_id "
+            "WHERE o.archived = 0 "
+            "GROUP BY p.product_id ORDER BY total_sold DESC LIMIT 1"
+        )
+        top_row = cursor.fetchone()
+        top_product = top_row["product_name"] if top_row else "N/A"
+
+        analytics = {
+            "orders_today": orders_today,
+            "pending_count": pending_count,
+            "total_revenue": total_revenue,
+            "top_product": top_product,
+        }
+
     except Exception as e:
         print(f"Error fetching orders: {e}")
         orders = []
+        analytics = {"orders_today": 0, "pending_count": 0, "total_revenue": 0, "top_product": "N/A"}
     finally:
         cursor.close()
         conn.close()
@@ -1332,6 +1405,11 @@ async def manage_orders(request: Request):
     return templates.TemplateResponse(request=request, name="manage_orders.html", context={
         "orders": orders, "user": user,
         "current_sort": current_sort, "sort_options": SORT_OPTIONS,
+        "q": q, "status_filter": status_filter,
+        "date_from": date_from, "date_to": date_to,
+        "analytics": analytics,
+        "error": request.query_params.get("error", ""),
+        "success": request.query_params.get("success", ""),
     })
 
 
@@ -1341,16 +1419,23 @@ async def update_order_status(request: Request):
     if check:
         return check
 
+    user = get_session_user(request)
     form = await request.form()
     order_id = form.get("order_id")
     new_status = (form.get("new_status", "")).strip().upper()
     redirect_to = form.get("redirect_to", "/manage-orders")
     sort_by = form.get("sort_by", "newest")
 
+    ## valid status transitions
+    VALID_STATUSES = {"CONFIRMED", "PACKED", "SHIPPED", "DELIVERED", "CANCELLED"}
+    if new_status not in VALID_STATUSES:
+        return RedirectResponse(url="/manage-orders", status_code=303)
+
     conn = database.get_connection()
     if conn is None:
         return HTMLResponse("DB Connection Failed", status_code=500)
 
+    now = datetime.now().isoformat()
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT status FROM ORDERS WHERE order_id = ?", (order_id,))
@@ -1359,8 +1444,25 @@ async def update_order_status(request: Request):
             return RedirectResponse(url="/manage-orders", status_code=303)
         old_status = (row["status"] or "").strip().upper()
 
-        cursor.execute("UPDATE ORDERS SET status = ? WHERE order_id = ?", (new_status, order_id))
+        ## map status → timestamp column
+        ts_col = {"CONFIRMED": "confirmed_at", "PACKED": "packed_at",
+                  "SHIPPED": "shipped_at", "DELIVERED": "delivered_at"}.get(new_status)
 
+        if ts_col:
+            cursor.execute(
+                f"UPDATE ORDERS SET status = ?, {ts_col} = ? WHERE order_id = ?",
+                (new_status, now, order_id)
+            )
+        else:
+            cursor.execute("UPDATE ORDERS SET status = ? WHERE order_id = ?", (new_status, order_id))
+
+        ## log into status history
+        cursor.execute(
+            "INSERT INTO ORDER_STATUS_HISTORY (order_id, status, changed_at, changed_by) VALUES (?, ?, ?, ?)",
+            (order_id, new_status, now, user["user_id"])
+        )
+
+        ## stock management: restore on cancel, deduct if un-cancelling
         if old_status != "CANCELLED" and new_status == "CANCELLED":
             cursor.execute("SELECT product_id, quantity FROM ORDER_ITEMS WHERE order_id = ?", (order_id,))
             for item in cursor.fetchall():
@@ -1377,28 +1479,29 @@ async def update_order_status(request: Request):
                 )
 
         conn.commit()
+        success_msg = quote_plus(f"Order #{order_id} updated to {new_status}.")
+        allowed = {"/manage-orders", "/create-order"}
+        target = redirect_to if redirect_to in allowed else "/manage-orders"
+        current_sort = clean_sort(sort_by)
+        return RedirectResponse(url=f"{target}?sort_by={quote_plus(current_sort)}&success={success_msg}", status_code=303)
     except Exception as e:
         print(f"Error updating status: {e}")
         conn.rollback()
+        err_msg = quote_plus(f"Failed to update order #{order_id}: database may be busy. Please try again.")
+        current_sort = clean_sort(sort_by)
+        return RedirectResponse(url=f"/manage-orders?sort_by={quote_plus(current_sort)}&error={err_msg}", status_code=303)
     finally:
         cursor.close()
         conn.close()
 
-    allowed = {"/manage-orders", "/create-order"}
-    target = redirect_to if redirect_to in allowed else "/manage-orders"
-    current_sort = clean_sort(sort_by)
-    return RedirectResponse(url=f"{target}?sort_by={quote_plus(current_sort)}", status_code=303)
 
-
-@app.post("/orders/archive")
-async def archive_order(request: Request):
+@app.get("/orders/archive/{order_id}")
+async def archive_order(order_id: int, request: Request):
     check = require_admin(request)
     if check:
         return check
 
-    form = await request.form()
-    order_id = form.get("order_id")
-    sort_by = form.get("sort_by", "newest")
+    sort_by = request.query_params.get("sort_by", "newest")
 
     conn = database.get_connection()
     if conn is None:
@@ -1406,15 +1509,178 @@ async def archive_order(request: Request):
 
     cursor = conn.cursor()
     try:
-        ## only archive orders that are done (delivered or cancelled)
         cursor.execute(
             "UPDATE ORDERS SET archived = 1 "
             "WHERE order_id = ? AND status IN ('DELIVERED', 'CANCELLED')",
             (order_id,)
         )
         conn.commit()
+        if cursor.rowcount == 0:
+            current_sort = clean_sort(sort_by)
+            err_msg = quote_plus("Could not archive order. Make sure it is Delivered or Cancelled.")
+            return RedirectResponse(url=f"/manage-orders?sort_by={quote_plus(current_sort)}&error={err_msg}", status_code=303)
     except Exception as e:
         print(f"Error archiving order: {e}")
+        conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
+
+    current_sort = clean_sort(sort_by)
+    return RedirectResponse(url=f"/manage-orders?sort_by={quote_plus(current_sort)}&success=Order+archived.", status_code=303)
+
+
+@app.get("/orders/delete/{order_id}")
+async def delete_order(order_id: int, request: Request):
+    check = require_admin(request)
+    if check:
+        return check
+
+    sort_by = request.query_params.get("sort_by", "newest")
+
+    conn = database.get_connection()
+    if conn is None:
+        return HTMLResponse("DB Connection Failed", status_code=500)
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM ORDERS WHERE order_id = ? AND archived = 1", (order_id,))
+        conn.commit()
+    except Exception as e:
+        print(f"Error deleting order: {e}")
+        conn.rollback()
+        err_msg = quote_plus("Failed to delete order. Ensure it is archived first.")
+        return RedirectResponse(url=f"/manage-orders?status=ARCHIVED&sort_by={quote_plus(clean_sort(sort_by))}&error={err_msg}", status_code=303)
+    finally:
+        cursor.close()
+        conn.close()
+
+    current_sort = clean_sort(sort_by)
+    return RedirectResponse(url=f"/manage-orders?status=ARCHIVED&sort_by={quote_plus(current_sort)}&success=Order+permanently+deleted.", status_code=303)
+
+
+@app.get("/order-detail/{order_id}")
+async def order_detail(order_id: int, request: Request):
+    check = require_admin(request)
+    if check:
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
+
+    conn = database.get_connection()
+    if conn is None:
+        return JSONResponse({"error": "DB error"}, status_code=500)
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT o.order_id, o.order_date, o.status, o.order_type, "
+            "o.customer_name, o.delivery_address, o.contact_phone, o.contact_email, o.order_notes, "
+            "o.confirmed_at, o.packed_at, o.shipped_at, o.delivered_at, "
+            "u.full_name, u.email "
+            "FROM ORDERS o JOIN USERS u ON o.requested_by = u.user_id "
+            "WHERE o.order_id = ?",
+            (order_id,)
+        )
+        order = cursor.fetchone()
+        if not order:
+            return JSONResponse({"error": "Not found"}, status_code=404)
+        order_dict = dict(order)
+
+        ## get order items with current inventory info
+        cursor.execute(
+            "SELECT oi.product_id, p.product_name, p.category, "
+            "oi.quantity, oi.unit_price, (oi.quantity * oi.unit_price) as line_total, "
+            "COALESCE(i.current_stock, 0) as current_stock "
+            "FROM ORDER_ITEMS oi "
+            "JOIN PRODUCTS p ON p.product_id = oi.product_id "
+            "LEFT JOIN INVENTORY i ON i.product_id = p.product_id "
+            "WHERE oi.order_id = ?",
+            (order_id,)
+        )
+        items = rows_to_dicts(cursor.fetchall())
+
+        ## get status change history
+        cursor.execute(
+            "SELECT h.status, h.changed_at, COALESCE(u.full_name, 'System') as changed_by "
+            "FROM ORDER_STATUS_HISTORY h "
+            "LEFT JOIN USERS u ON h.changed_by = u.user_id "
+            "WHERE h.order_id = ? ORDER BY h.changed_at ASC",
+            (order_id,)
+        )
+        history = rows_to_dicts(cursor.fetchall())
+
+        return JSONResponse({"order": order_dict, "items": items, "history": history})
+    except Exception as e:
+        print(f"Error fetching order detail: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.post("/bulk-update-orders")
+async def bulk_update_orders(request: Request):
+    check = require_admin(request)
+    if check:
+        return check
+
+    user = get_session_user(request)
+    form = await request.form()
+    order_ids = form.getlist("order_ids")
+    new_status = (form.get("new_status", "")).strip().upper()
+    sort_by = form.get("sort_by", "newest")
+
+    BULK_VALID = {"PACKED", "SHIPPED", "DELIVERED", "CANCELLED"}
+    if new_status not in BULK_VALID or not order_ids:
+        current_sort = clean_sort(sort_by)
+        return RedirectResponse(url=f"/manage-orders?sort_by={quote_plus(current_sort)}", status_code=303)
+
+    conn = database.get_connection()
+    if conn is None:
+        return HTMLResponse("DB Connection Failed", status_code=500)
+
+    now = datetime.now().isoformat()
+    cursor = conn.cursor()
+    ts_col = {"PACKED": "packed_at", "SHIPPED": "shipped_at", "DELIVERED": "delivered_at"}.get(new_status)
+
+    try:
+        for oid in order_ids:
+            cursor.execute("SELECT status FROM ORDERS WHERE order_id = ?", (oid,))
+            row = cursor.fetchone()
+            if not row:
+                continue
+            old_status = (row["status"] or "").strip().upper()
+
+            if ts_col:
+                cursor.execute(
+                    f"UPDATE ORDERS SET status = ?, {ts_col} = ? WHERE order_id = ?",
+                    (new_status, now, oid)
+                )
+            else:
+                cursor.execute("UPDATE ORDERS SET status = ? WHERE order_id = ?", (new_status, oid))
+
+            cursor.execute(
+                "INSERT INTO ORDER_STATUS_HISTORY (order_id, status, changed_at, changed_by) VALUES (?, ?, ?, ?)",
+                (oid, new_status, now, user["user_id"])
+            )
+
+            if old_status != "CANCELLED" and new_status == "CANCELLED":
+                cursor.execute("SELECT product_id, quantity FROM ORDER_ITEMS WHERE order_id = ?", (oid,))
+                for item in cursor.fetchall():
+                    cursor.execute(
+                        "UPDATE INVENTORY SET current_stock = current_stock + ? WHERE product_id = ?",
+                        (item["quantity"], item["product_id"])
+                    )
+            elif old_status == "CANCELLED" and new_status != "CANCELLED":
+                cursor.execute("SELECT product_id, quantity FROM ORDER_ITEMS WHERE order_id = ?", (oid,))
+                for item in cursor.fetchall():
+                    cursor.execute(
+                        "UPDATE INVENTORY SET current_stock = current_stock - ? WHERE product_id = ?",
+                        (item["quantity"], item["product_id"])
+                    )
+
+        conn.commit()
+    except Exception as e:
+        print(f"Error in bulk update: {e}")
         conn.rollback()
     finally:
         cursor.close()
