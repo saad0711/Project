@@ -95,17 +95,15 @@ def group_order_rows(rows):
 
 def fetch_cart_rows(cursor, user_id):
     cursor.execute(
-        """
-        SELECT ci.cart_item_id, ci.user_id, ci.product_id, ci.quantity, ci.updated_at, 
-        p.product_name, p.category, p.selling_price, 
-        COALESCE(i.current_stock, 0) AS current_stock, 
-        (ci.quantity * p.selling_price) AS line_total 
-        FROM CART_ITEMS ci 
-        JOIN PRODUCTS p ON p.product_id = ci.product_id 
-        LEFT JOIN INVENTORY i ON i.product_id = p.product_id 
-        WHERE ci.user_id = ? 
-        ORDER BY ci.updated_at DESC, ci.cart_item_id ASC
-        """,
+        "SELECT ci.cart_item_id, ci.user_id, ci.product_id, ci.quantity, ci.updated_at, "
+        "p.product_name, p.category, p.selling_price, "
+        "COALESCE(i.current_stock, 0) AS current_stock, "
+        "(ci.quantity * p.selling_price) AS line_total "
+        "FROM CART_ITEMS ci "
+        "JOIN PRODUCTS p ON p.product_id = ci.product_id "
+        "LEFT JOIN INVENTORY i ON i.product_id = p.product_id "
+        "WHERE ci.user_id = ? "
+        "ORDER BY ci.updated_at DESC, ci.cart_item_id ASC",
         (user_id,)
     )
     cart_rows = rows_to_dicts(cursor.fetchall())
@@ -195,10 +193,8 @@ async def login_submit(request: Request):
     try:
         hashed = database.hash_password(password)
         cursor.execute(
-            """
-            SELECT user_id, full_name, email, role FROM USERS 
-            WHERE email = ? AND password = ? AND status = 'Active'
-            """,
+            "SELECT user_id, full_name, email, role FROM USERS "
+            "WHERE email = ? AND password = ? AND status = 'Active'",
             (email, hashed)
         )
         user = cursor.fetchone()
@@ -258,10 +254,8 @@ async def register_submit(request: Request):
     try:
         hashed = database.hash_password(password)
         cursor.execute(
-            """
-            INSERT INTO USERS (full_name, email, password, role, company_name, status) 
-            VALUES (?, ?, ?, ?, ?, 'Active')
-            """,
+            "INSERT INTO USERS (full_name, email, password, role, company_name, status) "
+            "VALUES (?, ?, ?, ?, ?, 'Active')",
             (full_name, email, hashed, role, company_name or None)
         )
         conn.commit()
@@ -301,13 +295,11 @@ async def user_dashboard(request: Request):
     try:
         ## get this users orders (only non-archived ones)
         cursor.execute(
-            """
-            SELECT o.order_id, o.order_date, o.status, 
-            COALESCE((SELECT SUM(oi.quantity * oi.unit_price) 
-             FROM ORDER_ITEMS oi WHERE oi.order_id = o.order_id), 0) AS total_amount 
-            FROM ORDERS o WHERE o.requested_by = ? AND o.archived = 0 
-            ORDER BY o.order_date DESC LIMIT 10
-            """,
+            "SELECT o.order_id, o.order_date, o.status, "
+            "COALESCE((SELECT SUM(oi.quantity * oi.unit_price) "
+            " FROM ORDER_ITEMS oi WHERE oi.order_id = o.order_id), 0) AS total_amount "
+            "FROM ORDERS o WHERE o.requested_by = ? AND o.archived = 0 "
+            "ORDER BY o.order_date DESC LIMIT 10",
             (user["user_id"],)
         )
         my_orders = rows_to_dicts(cursor.fetchall())
@@ -318,13 +310,11 @@ async def user_dashboard(request: Request):
 
         ## fetch all products for the user to potentially order
         cursor.execute(
-            """
-            SELECT p.product_id, p.product_name, p.category, p.selling_price, 
-            COALESCE(i.current_stock, 0) AS current_stock 
-            FROM PRODUCTS p 
-            LEFT JOIN INVENTORY i ON p.product_id = i.product_id 
-            ORDER BY p.product_name ASC
-            """
+            "SELECT p.product_id, p.product_name, p.category, p.selling_price, "
+            "COALESCE(i.current_stock, 0) AS current_stock "
+            "FROM PRODUCTS p "
+            "LEFT JOIN INVENTORY i ON p.product_id = i.product_id "
+            "ORDER BY p.product_name ASC"
         )
         available_products = rows_to_dicts(cursor.fetchall())
 
@@ -342,13 +332,11 @@ async def user_dashboard(request: Request):
                 supplier_info = cursor.fetchone()
             if supplier_info:
                 cursor.execute(
-                    """
-                    SELECT p.product_id, p.product_name, p.category, p.selling_price, 
-                    COALESCE(i.current_stock, 0) AS current_stock 
-                    FROM PRODUCTS p 
-                    LEFT JOIN INVENTORY i ON p.product_id = i.product_id 
-                    WHERE p.supplier_id = ? ORDER BY p.product_name ASC
-                    """,
+                    "SELECT p.product_id, p.product_name, p.category, p.selling_price, "
+                    "COALESCE(i.current_stock, 0) AS current_stock "
+                    "FROM PRODUCTS p "
+                    "LEFT JOIN INVENTORY i ON p.product_id = i.product_id "
+                    "WHERE p.supplier_id = ? ORDER BY p.product_name ASC",
                     (supplier_info["supplier_id"],)
                 )
                 my_products = rows_to_dicts(cursor.fetchall())
@@ -631,12 +619,10 @@ async def add_to_cart(request: Request):
     cursor = conn.cursor()
     try:
         cursor.execute(
-            """
-            SELECT p.product_name, COALESCE(i.current_stock, 0) AS current_stock 
-            FROM PRODUCTS p 
-            LEFT JOIN INVENTORY i ON i.product_id = p.product_id 
-            WHERE p.product_id = ?
-            """,
+            "SELECT p.product_name, COALESCE(i.current_stock, 0) AS current_stock "
+            "FROM PRODUCTS p "
+            "LEFT JOIN INVENTORY i ON i.product_id = p.product_id "
+            "WHERE p.product_id = ?",
             (product_id,)
         )
         product = cursor.fetchone()
@@ -655,10 +641,8 @@ async def add_to_cart(request: Request):
             return RedirectResponse(url="/user-dashboard?error=Not+enough+stock+available", status_code=303)
 
         cursor.execute(
-            """
-            INSERT INTO CART_ITEMS (user_id, product_id, quantity) VALUES (?, ?, ?) 
-            ON CONFLICT(user_id, product_id) DO UPDATE SET quantity = excluded.quantity, updated_at = datetime('now')
-            """,
+            "INSERT INTO CART_ITEMS (user_id, product_id, quantity) VALUES (?, ?, ?) "
+            "ON CONFLICT(user_id, product_id) DO UPDATE SET quantity = excluded.quantity, updated_at = datetime('now')",
             (user["user_id"], product_id, desired_qty)
         )
         conn.commit()
@@ -697,11 +681,9 @@ async def update_cart_item(request: Request):
     cursor = conn.cursor()
     try:
         cursor.execute(
-            """
-            SELECT COALESCE(i.current_stock, 0) AS current_stock 
-            FROM PRODUCTS p LEFT JOIN INVENTORY i ON i.product_id = p.product_id 
-            WHERE p.product_id = ?
-            """,
+            "SELECT COALESCE(i.current_stock, 0) AS current_stock "
+            "FROM PRODUCTS p LEFT JOIN INVENTORY i ON i.product_id = p.product_id "
+            "WHERE p.product_id = ?",
             (product_id,)
         )
         product = cursor.fetchone()
@@ -720,10 +702,8 @@ async def update_cart_item(request: Request):
             return RedirectResponse(url="/cart?error=Not+enough+stock+available", status_code=303)
 
         cursor.execute(
-            """
-            UPDATE CART_ITEMS SET quantity = ?, updated_at = datetime('now') 
-            WHERE user_id = ? AND product_id = ?
-            """,
+            "UPDATE CART_ITEMS SET quantity = ?, updated_at = datetime('now') "
+            "WHERE user_id = ? AND product_id = ?",
             (quantity, user["user_id"], product_id)
         )
         if cursor.rowcount <= 0:
@@ -859,10 +839,8 @@ async def checkout_cart(request: Request):
                 return RedirectResponse(url=f"/cart/checkout?error={msg}", status_code=303)
 
         cursor.execute(
-            """
-            INSERT INTO ORDERS (requested_by, order_type, status, customer_name, delivery_address, contact_phone, contact_email, order_notes) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            "INSERT INTO ORDERS (requested_by, order_type, status, customer_name, delivery_address, contact_phone, contact_email, order_notes) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (user["user_id"], "Cart", "PENDING", customer_name, delivery_address, contact_phone, contact_email, order_notes or None)
         )
         order_id = cursor.lastrowid
@@ -906,17 +884,15 @@ async def recent_orders(request: Request):
     cursor = conn.cursor()
     try:
         cursor.execute(
-            """
-            SELECT o.order_id, o.order_date, o.status, o.order_type, o.customer_name, 
-            o.delivery_address, o.contact_phone, o.contact_email, o.order_notes, o.archived, 
-            oi.item_id, oi.product_id, p.product_name, p.category, 
-            oi.quantity, oi.unit_price, (oi.quantity * oi.unit_price) AS line_total 
-            FROM ORDERS o 
-            LEFT JOIN ORDER_ITEMS oi ON oi.order_id = o.order_id 
-            LEFT JOIN PRODUCTS p ON p.product_id = oi.product_id 
-            WHERE o.requested_by = ? 
-            ORDER BY o.order_date DESC, o.order_id DESC, oi.item_id ASC
-            """,
+            "SELECT o.order_id, o.order_date, o.status, o.order_type, o.customer_name, "
+            "o.delivery_address, o.contact_phone, o.contact_email, o.order_notes, o.archived, "
+            "oi.item_id, oi.product_id, p.product_name, p.category, "
+            "oi.quantity, oi.unit_price, (oi.quantity * oi.unit_price) AS line_total "
+            "FROM ORDERS o "
+            "LEFT JOIN ORDER_ITEMS oi ON oi.order_id = o.order_id "
+            "LEFT JOIN PRODUCTS p ON p.product_id = oi.product_id "
+            "WHERE o.requested_by = ? "
+            "ORDER BY o.order_date DESC, o.order_id DESC, oi.item_id ASC",
             (user["user_id"],)
         )
         recent_orders = group_order_rows(cursor.fetchall())
@@ -990,24 +966,19 @@ async def view_users(request: Request):
         if q.strip():
             like = f"%{q.strip()}%"
             cursor.execute(
-                """
-                SELECT u.user_id, u.full_name, u.email, u.role, u.company_name, u.status, u.created_at, 
-                (SELECT COUNT(*) FROM ORDERS o WHERE o.requested_by = u.user_id AND o.archived = 0) AS order_count 
-                FROM USERS u 
-                WHERE (u.full_name LIKE ? OR u.email LIKE ? OR u.role LIKE ? OR u.company_name LIKE ?) AND u.status != 'Deleted' 
-                
-                """
+                "SELECT u.user_id, u.full_name, u.email, u.role, u.company_name, u.status, u.created_at, "
+                "(SELECT COUNT(*) FROM ORDERS o WHERE o.requested_by = u.user_id AND o.archived = 0) AS order_count "
+                "FROM USERS u "
+                "WHERE (u.full_name LIKE ? OR u.email LIKE ? OR u.role LIKE ? OR u.company_name LIKE ?) AND u.status != 'Deleted' "
                 f"ORDER BY {order_clause}",
                 (like, like, like, like)
             )
         else:
             cursor.execute(
-                """
-                SELECT u.user_id, u.full_name, u.email, u.role, u.company_name, u.status, u.created_at, 
-                (SELECT COUNT(*) FROM ORDERS o WHERE o.requested_by = u.user_id AND o.archived = 0) AS order_count 
-                FROM USERS u 
-                WHERE u.status != 'Deleted' 
-                """
+                "SELECT u.user_id, u.full_name, u.email, u.role, u.company_name, u.status, u.created_at, "
+                "(SELECT COUNT(*) FROM ORDERS o WHERE o.requested_by = u.user_id AND o.archived = 0) AS order_count "
+                "FROM USERS u "
+                "WHERE u.status != 'Deleted' "
                 f"ORDER BY {order_clause}"
             )
 
@@ -1182,24 +1153,22 @@ async def view_suppliers(request: Request):
         ## subquery 2: sums up all revenue from orders that contain this suppliers products
         ## subquery 3: counts how many distinct orders have items from this supplier
         cursor.execute(
-            """
-            SELECT s.supplier_id, s.user_id, s.contact_phone, s.address, 
-            s.rating, s.supply_category, s.created_at, 
-            u.full_name, u.email, u.company_name, 
-            (SELECT COUNT(*) FROM PRODUCTS p WHERE p.supplier_id = s.supplier_id) AS product_count, 
-            (SELECT COALESCE(SUM(oi.quantity * oi.unit_price), 0) 
-             FROM ORDER_ITEMS oi 
-             JOIN PRODUCTS p ON oi.product_id = p.product_id 
-             JOIN ORDERS ord ON oi.order_id = ord.order_id 
-             WHERE p.supplier_id = s.supplier_id AND ord.archived = 0) AS total_revenue, 
-            (SELECT COUNT(DISTINCT oi.order_id) 
-             FROM ORDER_ITEMS oi 
-             JOIN PRODUCTS p ON oi.product_id = p.product_id 
-             JOIN ORDERS ord ON oi.order_id = ord.order_id 
-             WHERE p.supplier_id = s.supplier_id AND ord.archived = 0) AS order_count 
-            FROM SUPPLIERS s 
-            JOIN USERS u ON s.user_id = u.user_id 
-            """
+            "SELECT s.supplier_id, s.user_id, s.contact_phone, s.address, "
+            "s.rating, s.supply_category, s.created_at, "
+            "u.full_name, u.email, u.company_name, "
+            "(SELECT COUNT(*) FROM PRODUCTS p WHERE p.supplier_id = s.supplier_id) AS product_count, "
+            "(SELECT COALESCE(SUM(oi.quantity * oi.unit_price), 0) "
+            " FROM ORDER_ITEMS oi "
+            " JOIN PRODUCTS p ON oi.product_id = p.product_id "
+            " JOIN ORDERS ord ON oi.order_id = ord.order_id "
+            " WHERE p.supplier_id = s.supplier_id AND ord.archived = 0) AS total_revenue, "
+            "(SELECT COUNT(DISTINCT oi.order_id) "
+            " FROM ORDER_ITEMS oi "
+            " JOIN PRODUCTS p ON oi.product_id = p.product_id "
+            " JOIN ORDERS ord ON oi.order_id = ord.order_id "
+            " WHERE p.supplier_id = s.supplier_id AND ord.archived = 0) AS order_count "
+            "FROM SUPPLIERS s "
+            "JOIN USERS u ON s.user_id = u.user_id "
             f"ORDER BY {order_clause}"
         )
         suppliers = rows_to_dicts(cursor.fetchall())
@@ -1207,12 +1176,10 @@ async def view_suppliers(request: Request):
         ## also get users who are marked as Supplier role but dont have a supplier record yet
         ## so the admin can add them as suppliers
         cursor.execute(
-            """
-            SELECT u.user_id, u.full_name, u.email FROM USERS u 
-            LEFT JOIN SUPPLIERS s ON u.user_id = s.user_id 
-            WHERE s.supplier_id IS NULL AND u.status != 'Deleted' 
-            ORDER BY u.full_name ASC
-            """
+            "SELECT u.user_id, u.full_name, u.email FROM USERS u "
+            "LEFT JOIN SUPPLIERS s ON u.user_id = s.user_id "
+            "WHERE s.supplier_id IS NULL AND u.status != 'Deleted' "
+            "ORDER BY u.full_name ASC"
         )
         available_users = rows_to_dicts(cursor.fetchall())
 
@@ -1264,10 +1231,8 @@ async def add_supplier(request: Request):
             redirect_url = f"/suppliers?status=warning&message={msg}"
         else:
             cursor.execute(
-                """
-                INSERT INTO SUPPLIERS (user_id, contact_phone, address, rating, supply_category) 
-                VALUES (?, ?, ?, ?, ?)
-                """,
+                "INSERT INTO SUPPLIERS (user_id, contact_phone, address, rating, supply_category) "
+                "VALUES (?, ?, ?, ?, ?)",
                 (user_id, contact_phone or None, address or None, rating, supply_category or None)
             )
             conn.commit()
@@ -1303,13 +1268,11 @@ async def delete_supplier(request: Request):
     try:
         ## check if this supplier has pending orders
         cursor.execute(
-            """
-            SELECT COUNT(*) as pending_count 
-            FROM ORDER_ITEMS oi 
-            JOIN ORDERS o ON oi.order_id = o.order_id 
-            JOIN PRODUCTS p ON oi.product_id = p.product_id 
-            WHERE p.supplier_id = ? AND o.status = 'PENDING' AND o.archived = 0
-            """,
+            "SELECT COUNT(*) as pending_count "
+            "FROM ORDER_ITEMS oi "
+            "JOIN ORDERS o ON oi.order_id = o.order_id "
+            "JOIN PRODUCTS p ON oi.product_id = p.product_id "
+            "WHERE p.supplier_id = ? AND o.status = 'PENDING' AND o.archived = 0",
             (supplier_id,)
         )
         pending = cursor.fetchone()
@@ -1361,45 +1324,39 @@ async def create_order_form(request: Request):
 
     try:
         cursor.execute(
-            """
-            SELECT user_id, full_name, email FROM USERS 
-            WHERE role IN ('User', 'Retailer', 'Customer') AND status != 'Deleted' 
-            ORDER BY full_name ASC
-            """
+            "SELECT user_id, full_name, email FROM USERS "
+            "WHERE role IN ('User', 'Retailer', 'Customer') AND status != 'Deleted' "
+            "ORDER BY full_name ASC"
         )
         customers = rows_to_dicts(cursor.fetchall())
 
         cursor.execute(
-            """
-            SELECT p.product_id, p.product_name, p.selling_price, 
-            COALESCE(u.full_name, 'No Supplier') AS supplier_name 
-            FROM PRODUCTS p 
-            LEFT JOIN SUPPLIERS s ON p.supplier_id = s.supplier_id 
-            LEFT JOIN USERS u ON s.user_id = u.user_id 
-            ORDER BY p.product_name ASC
-            """
+            "SELECT p.product_id, p.product_name, p.selling_price, "
+            "COALESCE(u.full_name, 'No Supplier') AS supplier_name "
+            "FROM PRODUCTS p "
+            "LEFT JOIN SUPPLIERS s ON p.supplier_id = s.supplier_id "
+            "LEFT JOIN USERS u ON s.user_id = u.user_id "
+            "ORDER BY p.product_name ASC"
         )
         products = rows_to_dicts(cursor.fetchall())
 
         cursor.execute(
-            """
-            SELECT o.order_id, o.order_date, o.status, 
-            u.full_name AS customer_name, 
-            (SELECT p2.product_name FROM ORDER_ITEMS oi2 
-             JOIN PRODUCTS p2 ON p2.product_id = oi2.product_id 
-             WHERE oi2.order_id = o.order_id ORDER BY oi2.item_id ASC LIMIT 1) AS product_name, 
-            (SELECT oi2.quantity FROM ORDER_ITEMS oi2 
-             WHERE oi2.order_id = o.order_id ORDER BY oi2.item_id ASC LIMIT 1) AS quantity, 
-            COALESCE((SELECT SUM(oi2.quantity * oi2.unit_price) 
-             FROM ORDER_ITEMS oi2 WHERE oi2.order_id = o.order_id), 0) AS total_amount, 
-            COALESCE((SELECT COUNT(*) FROM ORDER_ITEMS oi2 
-             WHERE oi2.order_id = o.order_id), 0) AS item_count 
-            FROM ORDERS o 
-            JOIN USERS u ON o.requested_by = u.user_id 
-            WHERE o.archived = 0 
-            """
-            f"""ORDER BY {sort_clause} 
-            LIMIT 8"""
+            "SELECT o.order_id, o.order_date, o.status, "
+            "u.full_name AS customer_name, "
+            "(SELECT p2.product_name FROM ORDER_ITEMS oi2 "
+            " JOIN PRODUCTS p2 ON p2.product_id = oi2.product_id "
+            " WHERE oi2.order_id = o.order_id ORDER BY oi2.item_id ASC LIMIT 1) AS product_name, "
+            "(SELECT oi2.quantity FROM ORDER_ITEMS oi2 "
+            " WHERE oi2.order_id = o.order_id ORDER BY oi2.item_id ASC LIMIT 1) AS quantity, "
+            "COALESCE((SELECT SUM(oi2.quantity * oi2.unit_price) "
+            " FROM ORDER_ITEMS oi2 WHERE oi2.order_id = o.order_id), 0) AS total_amount, "
+            "COALESCE((SELECT COUNT(*) FROM ORDER_ITEMS oi2 "
+            " WHERE oi2.order_id = o.order_id), 0) AS item_count "
+            "FROM ORDERS o "
+            "JOIN USERS u ON o.requested_by = u.user_id "
+            "WHERE o.archived = 0 "
+            f"ORDER BY {sort_clause} "
+            "LIMIT 8"
         )
         recent_orders = rows_to_dicts(cursor.fetchall())
 
@@ -1533,40 +1490,32 @@ async def manage_orders(request: Request):
 
         ## --- analytics queries ---
         cursor.execute(
-            """
-            SELECT COUNT(*) as cnt FROM ORDERS 
-            WHERE DATE(order_date) = DATE('now') AND archived = 0
-            """
+            "SELECT COUNT(*) as cnt FROM ORDERS "
+            "WHERE DATE(order_date) = DATE('now') AND archived = 0"
         )
         orders_today = cursor.fetchone()["cnt"]
 
         cursor.execute(
-            """
-            SELECT COUNT(*) as cnt FROM ORDERS 
-            WHERE status = 'PENDING' AND archived = 0
-            """
+            "SELECT COUNT(*) as cnt FROM ORDERS "
+            "WHERE status = 'PENDING' AND archived = 0"
         )
         pending_count = cursor.fetchone()["cnt"]
 
         cursor.execute(
-            """
-            SELECT COALESCE(SUM(oi.quantity * oi.unit_price), 0) as revenue 
-            FROM ORDER_ITEMS oi 
-            JOIN ORDERS o ON oi.order_id = o.order_id 
-            WHERE o.status = 'DELIVERED' AND o.archived = 0
-            """
+            "SELECT COALESCE(SUM(oi.quantity * oi.unit_price), 0) as revenue "
+            "FROM ORDER_ITEMS oi "
+            "JOIN ORDERS o ON oi.order_id = o.order_id "
+            "WHERE o.status = 'DELIVERED' AND o.archived = 0"
         )
         total_revenue = cursor.fetchone()["revenue"] or 0
 
         cursor.execute(
-            """
-            SELECT p.product_name, SUM(oi.quantity) as total_sold 
-            FROM ORDER_ITEMS oi 
-            JOIN PRODUCTS p ON oi.product_id = p.product_id 
-            JOIN ORDERS o ON oi.order_id = o.order_id 
-            WHERE o.archived = 0 
-            GROUP BY p.product_id ORDER BY total_sold DESC LIMIT 1
-            """
+            "SELECT p.product_name, SUM(oi.quantity) as total_sold "
+            "FROM ORDER_ITEMS oi "
+            "JOIN PRODUCTS p ON oi.product_id = p.product_id "
+            "JOIN ORDERS o ON oi.order_id = o.order_id "
+            "WHERE o.archived = 0 "
+            "GROUP BY p.product_id ORDER BY total_sold DESC LIMIT 1"
         )
         top_row = cursor.fetchone()
         top_product = top_row["product_name"] if top_row else "N/A"
@@ -1694,10 +1643,8 @@ async def archive_order(order_id: int, request: Request):
     cursor = conn.cursor()
     try:
         cursor.execute(
-            """
-            UPDATE ORDERS SET archived = 1 
-            WHERE order_id = ? AND status IN ('DELIVERED', 'CANCELLED')
-            """,
+            "UPDATE ORDERS SET archived = 1 "
+            "WHERE order_id = ? AND status IN ('DELIVERED', 'CANCELLED')",
             (order_id,)
         )
         conn.commit()
@@ -1758,14 +1705,12 @@ async def order_detail(order_id: int, request: Request):
     cursor = conn.cursor()
     try:
         cursor.execute(
-            """
-            SELECT o.order_id, o.order_date, o.status, o.order_type, 
-            o.customer_name, o.delivery_address, o.contact_phone, o.contact_email, o.order_notes, 
-            o.confirmed_at, o.packed_at, o.shipped_at, o.delivered_at, 
-            u.full_name, u.email 
-            FROM ORDERS o JOIN USERS u ON o.requested_by = u.user_id 
-            WHERE o.order_id = ?
-            """,
+            "SELECT o.order_id, o.order_date, o.status, o.order_type, "
+            "o.customer_name, o.delivery_address, o.contact_phone, o.contact_email, o.order_notes, "
+            "o.confirmed_at, o.packed_at, o.shipped_at, o.delivered_at, "
+            "u.full_name, u.email "
+            "FROM ORDERS o JOIN USERS u ON o.requested_by = u.user_id "
+            "WHERE o.order_id = ?",
             (order_id,)
         )
         order = cursor.fetchone()
@@ -1775,27 +1720,23 @@ async def order_detail(order_id: int, request: Request):
 
         ## get order items with current inventory info
         cursor.execute(
-            """
-            SELECT oi.product_id, p.product_name, p.category, 
-            oi.quantity, oi.unit_price, (oi.quantity * oi.unit_price) as line_total, 
-            COALESCE(i.current_stock, 0) as current_stock 
-            FROM ORDER_ITEMS oi 
-            JOIN PRODUCTS p ON p.product_id = oi.product_id 
-            LEFT JOIN INVENTORY i ON i.product_id = p.product_id 
-            WHERE oi.order_id = ?
-            """,
+            "SELECT oi.product_id, p.product_name, p.category, "
+            "oi.quantity, oi.unit_price, (oi.quantity * oi.unit_price) as line_total, "
+            "COALESCE(i.current_stock, 0) as current_stock "
+            "FROM ORDER_ITEMS oi "
+            "JOIN PRODUCTS p ON p.product_id = oi.product_id "
+            "LEFT JOIN INVENTORY i ON i.product_id = p.product_id "
+            "WHERE oi.order_id = ?",
             (order_id,)
         )
         items = rows_to_dicts(cursor.fetchall())
 
         ## get status change history
         cursor.execute(
-            """
-            SELECT h.status, h.changed_at, COALESCE(u.full_name, 'System') as changed_by 
-            FROM ORDER_STATUS_HISTORY h 
-            LEFT JOIN USERS u ON h.changed_by = u.user_id 
-            WHERE h.order_id = ? ORDER BY h.changed_at ASC
-            """,
+            "SELECT h.status, h.changed_at, COALESCE(u.full_name, 'System') as changed_by "
+            "FROM ORDER_STATUS_HISTORY h "
+            "LEFT JOIN USERS u ON h.changed_by = u.user_id "
+            "WHERE h.order_id = ? ORDER BY h.changed_at ASC",
             (order_id,)
         )
         history = rows_to_dicts(cursor.fetchall())
@@ -1898,20 +1839,11 @@ async def get_inventory(request: Request):
     cursor = conn.cursor()
     try:
         cursor.execute(
-<<<<<<< HEAD
-            """
-            SELECT p.product_id, p.product_name, i.current_stock, i.min_threshold, i.last_restock_date 
-            FROM PRODUCTS p 
-            JOIN INVENTORY i ON p.product_id = i.product_id 
-            ORDER BY i.current_stock ASC
-            """
-=======
             "SELECT p.product_id, p.product_name, COALESCE(i.current_stock, 0) as current_stock, "
             "COALESCE(i.min_threshold, 10) as min_threshold, i.last_restock_date "
             "FROM PRODUCTS p "
             "LEFT JOIN INVENTORY i ON p.product_id = i.product_id "
             "ORDER BY current_stock ASC"
->>>>>>> b157ebc (Implement decoupled Supplier Dashboard and fix UI bugs)
         )
 
         inventory = rows_to_dicts(cursor.fetchall())
@@ -1984,17 +1916,6 @@ async def get_dashboard(request: Request):
         row = cursor.fetchone()
         total_value = row["total_value"] if row and row["total_value"] else 0
 
-<<<<<<< HEAD
-        cursor.execute(
-            """
-            SELECT SUM(oi.quantity * oi.unit_price) as revenue 
-            FROM ORDER_ITEMS oi 
-            JOIN ORDERS o ON oi.order_id = o.order_id 
-            WHERE o.status = 'DELIVERED' AND o.archived = 0
-            """
-        )
-        total_revenue = cursor.fetchone()["revenue"] or 0
-=======
         # 2. Low Stock Alerts
         cursor.execute('''
             SELECT COUNT(*) as low_stock_count 
@@ -2002,7 +1923,6 @@ async def get_dashboard(request: Request):
             WHERE current_stock > 0 AND current_stock < min_threshold
         ''')
         low_stock_count = cursor.fetchone()["low_stock_count"]
->>>>>>> b157ebc (Implement decoupled Supplier Dashboard and fix UI bugs)
 
         # 3. Out of Stock
         cursor.execute('''
@@ -2012,31 +1932,17 @@ async def get_dashboard(request: Request):
         ''')
         out_of_stock_count = cursor.fetchone()["out_of_stock_count"]
 
-<<<<<<< HEAD
-        cursor.execute("SELECT COUNT(*) as total FROM INVENTORY WHERE current_stock < min_threshold")
-        low_stock = cursor.fetchone()["total"]
-
-        cursor.execute(
-            """
-=======
         # 4. Top-Selling Items
         cursor.execute('''
->>>>>>> b157ebc (Implement decoupled Supplier Dashboard and fix UI bugs)
             SELECT p.product_name, SUM(oi.quantity) as total_sold 
             FROM ORDER_ITEMS oi 
             JOIN PRODUCTS p ON oi.product_id = p.product_id 
             JOIN ORDERS o ON oi.order_id = o.order_id 
             WHERE o.archived = 0 
             GROUP BY p.product_id 
-<<<<<<< HEAD
-            ORDER BY total_sold DESC LIMIT 5
-            """
-        )
-=======
             ORDER BY total_sold DESC 
             LIMIT 5
         ''')
->>>>>>> b157ebc (Implement decoupled Supplier Dashboard and fix UI bugs)
         top_products = rows_to_dicts(cursor.fetchall())
 
         # 5. Recent Activity Feed
@@ -2114,10 +2020,8 @@ async def supplier_add_product(request: Request):
         supplier_id = supplier["supplier_id"]
 
         cursor.execute(
-            """
-            INSERT INTO PRODUCTS (product_name, category, unit_cost, selling_price, supplier_id) 
-            VALUES (?, ?, ?, ?, ?)
-            """,
+            "INSERT INTO PRODUCTS (product_name, category, unit_cost, selling_price, supplier_id) "
+            "VALUES (?, ?, ?, ?, ?)",
             (product_name, category, float(unit_cost), float(selling_price), supplier_id)
         )
         product_id = cursor.lastrowid
