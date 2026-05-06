@@ -50,6 +50,7 @@
     </div>
 </div>
 
+{% if user.role != 'Supplier' %}
 <div class="row mt-5 mb-3 align-items-center" id="available-products">
     <div class="col">
         <h4 class="mb-1 fw-bold">Add to Cart</h4>
@@ -92,6 +93,7 @@
         <div class="col-12 text-center text-muted py-4">No products are currently available.</div>
     {% endif %}
 </div>
+{% endif %}
 
 
 {% if user.role == 'Supplier' and supplier_info %}
