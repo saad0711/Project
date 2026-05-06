@@ -45,7 +45,7 @@
                     </td>
                     <td class="small text-muted">{{ item.last_restock_date }}</td>
                     <td>
-                        <form action="/adjust-stock" method="POST" class="d-inline-flex justify-content-center">
+                        <form action="/adjust-stock" method="POST" class="d-inline-flex justify-content-center" style="display: flex; flex-wrap: nowrap; align-items: center; white-space: nowrap;">
                             <input type="hidden" name="product_id" value="{{ item.product_id }}">
                             <div class="input-group input-group-sm shadow-sm overflow-hidden">
                                 <input type="number" name="new_qty" class="form-control border-0 bg-light" value="{{ item.current_stock }}" style="width: 70px;">

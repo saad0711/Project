@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block title %}Supplier Dashboard | IMS{% endblock %}
+
+{% block content %}
+<style>
+    .supplier-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border-radius: 12px;
+    }
+    .supplier-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important;
+    }
+    .gradient-text {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light, #5e8b7e) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .stat-icon {
+        font-size: 2rem;
+        opacity: 0.2;
+        position: absolute;
+        right: 1.5rem;
+        bottom: 1rem;
+    }
+    .custom-badge {
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+</style>
+
+<div class="row mb-4 align-items-center">
+    <div class="col">
+        <h2 class="mb-1 fw-bold">Supplier <span class="gradient-text">Dashboard</span></h2>
+        <p class="text-muted">Welcome back, {{ user.full_name }}</p>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert" style="border-radius: 8px;">
+    {{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert" style="border-radius: 8px;">
+    {{ success }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+<!-- Financial Ledger & Profile -->
+<div class="row g-4 mb-5">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100 supplier-card" style="background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border-left: 5px solid var(--primary) !important;">
+            <div class="card-body p-4 position-relative">
+                <div class="text-muted small fw-bold mb-2 text-uppercase tracking-wide">Total Revenue</div>
+                <h2 class="fw-bold mb-0" style="color: var(--primary);">${{ "%.2f"|format(total_revenue|float) if total_revenue else '0.00' }}</h2>
+                <i class="bi bi-cash-stack stat-icon text-dark"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100 supplier-card" style="background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border-left: 5px solid var(--accent, #8fb9a8) !important;">
+            <div class="card-body p-4 position-relative">
+                <div class="text-muted small fw-bold mb-2 text-uppercase tracking-wide">Sales Volume</div>
+                <h2 class="fw-bold mb-0" style="color: var(--success, #5cb85c);">{{ total_volume | default('0') }}</h2>
+                <i class="bi bi-box-seam stat-icon text-dark"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm h-100 supplier-card">
+            <div class="card-body p-4 d-flex align-items-center">
+                <div class="flex-shrink-0 me-4">
+                    <div class="bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                        <i class="bi bi-building fs-3 text-primary"></i>
+                    </div>
+                </div>
+                <div class="flex-grow-1">
+                    <h5 class="fw-bold mb-2">{{ user.full_name }}'s Profile</h5>
+                    {% if supplier_info %}
+                        <div class="d-flex flex-column gap-2 text-muted small mt-3">
+                            <span><i class="bi bi-telephone-fill me-2 text-primary"></i> <strong>Phone:</strong> {{ supplier_info.contact_phone or 'Not provided' }}</span>
+                            <span><i class="bi bi-geo-alt-fill me-2 text-danger"></i> <strong>Address:</strong> {{ supplier_info.address or 'Not provided' }}</span>
+                            <span class="text-warning mt-1" title="Supplier Rating">
+
+                                {% for i in range(supplier_info.rating|int) %}★{% endfor %}
+                                {% for i in range(5 - supplier_info.rating|int) %}☆{% endfor %}
+                            </span>
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0 small">Profile not complete. Please contact admin to set up your details.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main content row -->
+<div class="row g-4 mb-4">
+    <!-- Left column: Add Product Tool & Product & Stock Overview -->
+    <div class="col-lg-8">
+        
+        <!-- Add Product Tool -->
+        <div id="add-product" class="card border-0 shadow-sm mb-4 supplier-card">
+            <div class="card-header bg-white border-0 py-3 pb-0">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-plus-circle-fill text-primary me-2"></i>Add Product Tool</h5>
+            </div>
+            <div class="card-body p-4">
+                <form action="/supplier/add-product" method="POST">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">Product Name</label>
+                            <input type="text" name="product_name" class="form-control bg-light border-0 py-2" required placeholder="e.g. Wireless Mouse">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">Category</label>
+                            <input type="text" name="category" class="form-control bg-light border-0 py-2" placeholder="e.g. Electronics">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted">Unit Cost ($)</label>
+                            <input type="number" step="0.01" name="unit_cost" class="form-control bg-light border-0 py-2" required placeholder="0.00">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted">Selling Price ($)</label>
+                            <input type="number" step="0.01" name="selling_price" class="form-control bg-light border-0 py-2" required placeholder="0.00">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted">Initial Stock</label>
+                            <input type="number" name="initial_stock" class="form-control bg-light border-0 py-2" value="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted">Min Threshold</label>
+                            <input type="number" name="min_threshold" class="form-control bg-light border-0 py-2" value="10">
+                        </div>
+                        <div class="col-12 mt-4">
+                            <button type="submit" class="btn btn-primary w-100 py-2 fw-bold" style="border-radius: 8px;">
+                                <i class="bi bi-check2-circle me-1"></i> Submit New Product
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Product & Stock Overview -->
+        <div id="product-overview" class="card border-0 shadow-sm supplier-card">
+            <div class="card-header bg-white border-0 py-3 pb-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-box-seam text-primary me-2"></i>Product & Stock Overview</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 border-top mt-3">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="border-0 px-4 py-3 text-muted small text-uppercase tracking-wide">Product</th>
+                                <th class="border-0 py-3 text-muted small text-uppercase tracking-wide">Category</th>
+                                <th class="border-0 py-3 text-end text-muted small text-uppercase tracking-wide">Price</th>
+                                <th class="border-0 px-4 py-3 text-end text-muted small text-uppercase tracking-wide">Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if my_products %}
+                                {% for p in my_products %}
+                                <tr style="transition: background-color 0.15s;">
+                                    <td class="px-4 py-3 fw-semibold">{{ p.product_name }}</td>
+                                    <td class="py-3"><span class="badge bg-secondary bg-opacity-10 text-secondary border custom-badge">{{ p.category }}</span></td>
+                                    <td class="py-3 text-end fw-medium">${{ "%.2f"|format(p.selling_price|float) }}</td>
+                                    <td class="px-4 py-3 text-end">
+                                        <span class="badge {% if p.current_stock > 10 %}bg-success{% elif p.current_stock > 0 %}bg-warning text-dark{% else %}bg-danger{% endif %} rounded-pill px-3 py-2">
+                                            {{ p.current_stock }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                        You haven't listed any products yet.
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right column: Widgets -->
+    <div class="col-lg-4">
+        
+        <!-- Efficiency / Profit Margins -->
+        <div class="card border-0 shadow-sm mb-4 supplier-card">
+            <div class="card-header bg-white border-0 py-3">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-graph-up-arrow text-success me-2"></i>Efficiency</h5>
+                <small class="text-muted d-block mt-1">Top 5 profitable items</small>
+            </div>
+            <ul class="list-group list-group-flush border-top">
+                {% if efficiency %}
+                    {% for e in efficiency %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center py-3 border-0 border-bottom px-4">
+                        <div class="fw-semibold text-truncate" style="max-width: 60%;">{{ e.product_name }}</div>
+                        <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3 py-2 custom-badge">+${{ "%.2f"|format(e.profit_margin|float) }} margin</span>
+                    </li>
+                    {% endfor %}
+                {% else %}
+                    <li class="list-group-item text-center py-4 text-muted border-0">No product data available.</li>
+                {% endif %}
+            </ul>
+        </div>
+
+        <!-- "Top Sellers" Quick Analytics -->
+        <div class="card border-0 shadow-sm mb-4 supplier-card">
+            <div class="card-header bg-white border-0 py-3">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-trophy text-warning me-2"></i>Top Sellers</h5>
+                <small class="text-muted d-block mt-1">Most frequently ordered items</small>
+            </div>
+            <ul class="list-group list-group-flush border-top">
+                {% if top_sellers %}
+                    {% for t in top_sellers %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center py-3 border-0 border-bottom px-4">
+                        <div class="fw-semibold text-truncate" style="max-width: 70%;">{{ t.product_name }}</div>
+                        <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3 py-2 custom-badge">{{ t.sold }} sold</span>
+                    </li>
+                    {% endfor %}
+                {% else %}
+                    <li class="list-group-item text-center py-4 text-muted border-0">No sales data yet.</li>
+                {% endif %}
+            </ul>
+        </div>
+
+        <!-- Low-Stock Widget -->
+        <div class="card border-0 shadow-sm mb-4 supplier-card" style="border-left: 4px solid #f0ad4e !important;">
+            <div class="card-header bg-white border-0 py-3">
+                <h5 class="mb-0 fw-bold text-warning"><i class="bi bi-exclamation-triangle me-2"></i>Low-Stock Alerts</h5>
+            </div>
+            <ul class="list-group list-group-flush border-top">
+                {% if low_stock_items %}
+                    {% for l in low_stock_items %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center py-3 border-0 border-bottom px-4">
+                        <div class="fw-semibold text-truncate" style="max-width: 55%;">{{ l.product_name }}</div>
+                        <div class="text-end">
+                            <span class="badge bg-warning text-dark rounded-pill px-2 py-1 mb-1">{{ l.current_stock }} left</span>
+                            <div class="small text-muted fw-medium" style="font-size: 0.7rem;">Min: {{ l.min_threshold }}</div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                {% else %}
+                    <li class="list-group-item text-center py-4 text-muted border-0">
+                        <i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i>
+                        All stock levels look good.
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+
+    </div>
+</div>
+
+<!-- Personal Order Tracking -->
+<div class="card border-0 shadow-sm mb-5 supplier-card">
+    <div class="card-header bg-white border-0 py-4 pb-2">
+        <h5 class="mb-0 fw-bold"><i class="bi bi-truck text-info me-2"></i>Personal Order Tracking</h5>
+        <small class="text-muted">Recent items you ordered for yourself</small>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 border-top mt-2">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="border-0 px-4 py-3 text-muted small text-uppercase tracking-wide">Order ID</th>
+                        <th class="border-0 py-3 text-muted small text-uppercase tracking-wide">Date</th>
+                        <th class="border-0 py-3 text-muted small text-uppercase tracking-wide">Status</th>
+                        <th class="border-0 px-4 py-3 text-end text-muted small text-uppercase tracking-wide">Total Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if my_orders %}
+                        {% for o in my_orders %}
+                        <tr>
+                            <td class="px-4 py-3 fw-bold text-secondary">#{{ o.order_id }}</td>
+                            <td class="py-3 text-muted small fw-medium">{{ o.order_date[:16] }}</td>
+                            <td class="py-3">
+                                <span class="badge {% if o.status == 'DELIVERED' %}bg-success{% elif o.status == 'PENDING' %}bg-warning text-dark{% elif o.status == 'CANCELLED' %}bg-danger{% else %}bg-info text-dark{% endif %} rounded-pill px-3 py-2 custom-badge">
+                                    {{ o.status }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-end fw-bold text-dark">${{ "%.2f"|format(o.total_amount|float) }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">
+                                <i class="bi bi-bag-x fs-1 d-block mb-2"></i>
+                                You haven't placed any personal orders.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

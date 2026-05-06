@@ -33,6 +33,10 @@
                     <li class="nav-item"><a class="nav-link" href="/manage-orders">Manage</a></li>
                     <li class="nav-item"><a class="nav-link" href="/inventory">Inventory</a></li>
                     <li class="nav-item"><a class="nav-link" href="/dashboard">Dashboard</a></li>
+                    {% elif user and user.role == 'Supplier' %}
+                    <li class="nav-item"><a class="nav-link" href="/supplier-dashboard">Supplier Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/supplier-dashboard#product-overview">Product Overview</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/supplier-dashboard#add-product">Add Product</a></li>
                     {% elif user %}
                     <li class="nav-item"><a class="nav-link" href="/user-dashboard">My Dashboard</a></li>
                     <li class="nav-item"><a class="nav-link" href="/user-dashboard#available-products">Place Order</a></li>

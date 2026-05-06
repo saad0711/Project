@@ -154,6 +154,8 @@ async def root(request: Request):
     if user:
         if user["role"] == "Admin":
             return RedirectResponse(url="/home", status_code=303)
+        elif user["role"] == "Supplier":
+            return RedirectResponse(url="/supplier-dashboard", status_code=303)
         return RedirectResponse(url="/user-dashboard", status_code=303)
     return RedirectResponse(url="/login", status_code=303)
 
@@ -213,6 +215,8 @@ async def login_submit(request: Request):
         ## send to the right page based on role
         if user["role"] == "Admin":
             return RedirectResponse(url="/home", status_code=303)
+        elif user["role"] == "Supplier":
+            return RedirectResponse(url="/supplier-dashboard", status_code=303)
         return RedirectResponse(url="/user-dashboard", status_code=303)
 
     except Exception as e:
@@ -369,6 +373,135 @@ async def user_dashboard(request: Request):
         "available_products": available_products,
         "my_products": my_products,
         "supplier_info": supplier_info
+    })
+
+
+# ---------- SUPPLIER DASHBOARD ----------
+
+@app.get("/supplier-dashboard", response_class=HTMLResponse)
+async def supplier_dashboard(request: Request):
+    check = require_login(request)
+    if check:
+        return check
+
+    user = get_session_user(request)
+    if user["role"] != "Supplier":
+        return RedirectResponse(url="/user-dashboard", status_code=303)
+
+    error = request.query_params.get("error", "")
+    success = request.query_params.get("success", "")
+    conn = database.get_connection()
+    if conn is None:
+        return HTMLResponse("DB Connection Failed", status_code=500)
+
+    cursor = conn.cursor()
+    try:
+        # Supplier Profile
+        cursor.execute("SELECT contact_phone, address, rating FROM SUPPLIERS WHERE user_id = ?", (user["user_id"],))
+        supplier_info = cursor.fetchone()
+
+        if not supplier_info:
+            cursor.execute("INSERT INTO SUPPLIERS (user_id) VALUES (?)", (user["user_id"],))
+            conn.commit()
+            cursor.execute("SELECT contact_phone, address, rating FROM SUPPLIERS WHERE user_id = ?", (user["user_id"],))
+            supplier_info = cursor.fetchone()
+
+        # Product & Stock Overview
+        cursor.execute('''
+            SELECT p.product_id, p.product_name, p.category, p.selling_price, COALESCE(i.current_stock, 0) as current_stock 
+            FROM PRODUCTS p 
+            LEFT JOIN INVENTORY i ON p.product_id = i.product_id 
+            WHERE p.supplier_id = (SELECT supplier_id FROM SUPPLIERS WHERE user_id = ?)
+        ''', (user["user_id"],))
+        my_products = rows_to_dicts(cursor.fetchall())
+
+        # Personal Order Tracking
+        cursor.execute('''
+            SELECT o.order_id, o.order_date, o.status, 
+            COALESCE((SELECT SUM(oi.quantity * oi.unit_price) 
+             FROM ORDER_ITEMS oi WHERE oi.order_id = o.order_id), 0) AS total_amount 
+            FROM ORDERS o WHERE o.requested_by = ? AND o.archived = 0 
+            ORDER BY o.order_date DESC LIMIT 10
+        ''', (user["user_id"],))
+        my_orders = rows_to_dicts(cursor.fetchall())
+
+        # Low-Stock Widget
+        cursor.execute('''
+            SELECT p.product_name, i.current_stock, i.min_threshold 
+            FROM PRODUCTS p 
+            JOIN INVENTORY i ON p.product_id = i.product_id 
+            WHERE p.supplier_id = (SELECT supplier_id FROM SUPPLIERS WHERE user_id = ?) 
+              AND i.current_stock < i.min_threshold
+        ''', (user["user_id"],))
+        low_stock_items = rows_to_dicts(cursor.fetchall())
+
+        # "Top Sellers" Quick Analytics
+        cursor.execute('''
+            SELECT p.product_name, SUM(oi.quantity) as sold 
+            FROM ORDER_ITEMS oi 
+            JOIN PRODUCTS p ON oi.product_id = p.product_id 
+            WHERE p.supplier_id = (SELECT supplier_id FROM SUPPLIERS WHERE user_id = ?) 
+            GROUP BY p.product_name 
+            ORDER BY sold DESC 
+            LIMIT 5
+        ''', (user["user_id"],))
+        top_sellers = rows_to_dicts(cursor.fetchall())
+
+        # Financial Performance Ledger
+        # Total Revenue
+        cursor.execute('''
+            SELECT SUM(quantity * unit_price) as total_revenue 
+            FROM ORDER_ITEMS 
+            WHERE product_id IN (SELECT product_id FROM PRODUCTS WHERE supplier_id = (SELECT supplier_id FROM SUPPLIERS WHERE user_id = ?))
+        ''', (user["user_id"],))
+        row = cursor.fetchone()
+        total_revenue = row["total_revenue"] if row and row["total_revenue"] else 0
+
+        # Sales Volume
+        cursor.execute('''
+            SELECT SUM(quantity) as total_volume 
+            FROM ORDER_ITEMS 
+            WHERE product_id IN (SELECT product_id FROM PRODUCTS WHERE supplier_id = (SELECT supplier_id FROM SUPPLIERS WHERE user_id = ?))
+        ''', (user["user_id"],))
+        row = cursor.fetchone()
+        total_volume = row["total_volume"] if row and row["total_volume"] else 0
+
+        # Efficiency (Most Profitable Items)
+        cursor.execute('''
+            SELECT product_name, (selling_price - unit_cost) as profit_margin 
+            FROM PRODUCTS 
+            WHERE supplier_id = (SELECT supplier_id FROM SUPPLIERS WHERE user_id = ?) 
+            ORDER BY profit_margin DESC 
+            LIMIT 5
+        ''', (user["user_id"],))
+        efficiency = rows_to_dicts(cursor.fetchall())
+
+    except Exception as e:
+        print(f"Error loading supplier dashboard: {e}")
+        supplier_info = None
+        my_products = []
+        my_orders = []
+        low_stock_items = []
+        top_sellers = []
+        total_revenue = 0
+        total_volume = 0
+        efficiency = []
+    finally:
+        cursor.close()
+        conn.close()
+
+    return templates.TemplateResponse(request=request, name="supplier_dashboard.html", context={
+        "user": user,
+        "error": error,
+        "success": success,
+        "supplier_info": supplier_info,
+        "my_products": my_products,
+        "my_orders": my_orders,
+        "low_stock_items": low_stock_items,
+        "top_sellers": top_sellers,
+        "total_revenue": total_revenue,
+        "total_volume": total_volume,
+        "efficiency": efficiency
     })
 
 @app.post("/user/place-order")
@@ -1765,14 +1898,25 @@ async def get_inventory(request: Request):
     cursor = conn.cursor()
     try:
         cursor.execute(
+<<<<<<< HEAD
             """
             SELECT p.product_id, p.product_name, i.current_stock, i.min_threshold, i.last_restock_date 
             FROM PRODUCTS p 
             JOIN INVENTORY i ON p.product_id = i.product_id 
             ORDER BY i.current_stock ASC
             """
+=======
+            "SELECT p.product_id, p.product_name, COALESCE(i.current_stock, 0) as current_stock, "
+            "COALESCE(i.min_threshold, 10) as min_threshold, i.last_restock_date "
+            "FROM PRODUCTS p "
+            "LEFT JOIN INVENTORY i ON p.product_id = i.product_id "
+            "ORDER BY current_stock ASC"
+>>>>>>> b157ebc (Implement decoupled Supplier Dashboard and fix UI bugs)
         )
+
         inventory = rows_to_dicts(cursor.fetchall())
+        print(f"Fetched inventory: {inventory}")
+
     except Exception as e:
         print(f"Error fetching inventory: {e}")
         inventory = []
@@ -1831,9 +1975,16 @@ async def get_dashboard(request: Request):
 
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT COUNT(*) as total FROM USERS")
-        total_users = cursor.fetchone()["total"]
+        # 1. Total Inventory Value
+        cursor.execute('''
+            SELECT SUM(p.unit_cost * i.current_stock) as total_value 
+            FROM PRODUCTS p 
+            JOIN INVENTORY i ON p.product_id = i.product_id
+        ''')
+        row = cursor.fetchone()
+        total_value = row["total_value"] if row and row["total_value"] else 0
 
+<<<<<<< HEAD
         cursor.execute(
             """
             SELECT SUM(oi.quantity * oi.unit_price) as revenue 
@@ -1843,42 +1994,90 @@ async def get_dashboard(request: Request):
             """
         )
         total_revenue = cursor.fetchone()["revenue"] or 0
+=======
+        # 2. Low Stock Alerts
+        cursor.execute('''
+            SELECT COUNT(*) as low_stock_count 
+            FROM INVENTORY 
+            WHERE current_stock > 0 AND current_stock < min_threshold
+        ''')
+        low_stock_count = cursor.fetchone()["low_stock_count"]
+>>>>>>> b157ebc (Implement decoupled Supplier Dashboard and fix UI bugs)
 
-        cursor.execute("SELECT COUNT(*) as total FROM ORDERS WHERE status = 'PENDING' AND archived = 0")
-        pending_orders = cursor.fetchone()["total"]
+        # 3. Out of Stock
+        cursor.execute('''
+            SELECT COUNT(*) as out_of_stock_count 
+            FROM INVENTORY 
+            WHERE current_stock = 0
+        ''')
+        out_of_stock_count = cursor.fetchone()["out_of_stock_count"]
 
+<<<<<<< HEAD
         cursor.execute("SELECT COUNT(*) as total FROM INVENTORY WHERE current_stock < min_threshold")
         low_stock = cursor.fetchone()["total"]
 
         cursor.execute(
             """
+=======
+        # 4. Top-Selling Items
+        cursor.execute('''
+>>>>>>> b157ebc (Implement decoupled Supplier Dashboard and fix UI bugs)
             SELECT p.product_name, SUM(oi.quantity) as total_sold 
             FROM ORDER_ITEMS oi 
             JOIN PRODUCTS p ON oi.product_id = p.product_id 
             JOIN ORDERS o ON oi.order_id = o.order_id 
             WHERE o.archived = 0 
             GROUP BY p.product_id 
+<<<<<<< HEAD
             ORDER BY total_sold DESC LIMIT 5
             """
         )
+=======
+            ORDER BY total_sold DESC 
+            LIMIT 5
+        ''')
+>>>>>>> b157ebc (Implement decoupled Supplier Dashboard and fix UI bugs)
         top_products = rows_to_dicts(cursor.fetchall())
 
+        # 5. Recent Activity Feed
+        cursor.execute('''
+            SELECT o.order_id, u.full_name, o.status, o.order_date 
+            FROM ORDERS o 
+            JOIN USERS u ON o.requested_by = u.user_id 
+            ORDER BY o.order_date DESC 
+            LIMIT 5
+        ''')
+        recent_activity = rows_to_dicts(cursor.fetchall())
+
+        # 6. Purchase Order Status
+        cursor.execute('''
+            SELECT status, COUNT(*) as status_count 
+            FROM ORDERS 
+            GROUP BY status
+        ''')
+        order_status_counts = rows_to_dicts(cursor.fetchall())
+
         metrics = {
-            "total_users": total_users,
-            "total_revenue": total_revenue,
-            "pending_orders": pending_orders,
-            "low_stock_items": low_stock,
+            "total_value": total_value,
+            "low_stock_count": low_stock_count,
+            "out_of_stock_count": out_of_stock_count,
         }
     except Exception as e:
         print(f"Error loading dashboard: {e}")
         metrics = {}
         top_products = []
+        recent_activity = []
+        order_status_counts = []
     finally:
         cursor.close()
         conn.close()
 
     return templates.TemplateResponse(request=request, name="dashboard.html", context={
-        "metrics": metrics, "top_products": top_products, "user": user,
+        "metrics": metrics, 
+        "top_products": top_products, 
+        "recent_activity": recent_activity,
+        "order_status_counts": order_status_counts,
+        "user": user,
     })
 
 
@@ -1891,7 +2090,7 @@ async def supplier_add_product(request: Request):
 
     user = get_session_user(request)
     if user["role"] != "Supplier":
-        return RedirectResponse(url="/user-dashboard?error=Unauthorized", status_code=303)
+        return RedirectResponse(url="/supplier-dashboard?error=Unauthorized", status_code=303)
 
     form = await request.form()
     product_name = form.get("product_name", "").strip()
@@ -1903,14 +2102,14 @@ async def supplier_add_product(request: Request):
 
     conn = database.get_connection()
     if conn is None:
-        return RedirectResponse(url="/user-dashboard?error=DB+Error", status_code=303)
+        return RedirectResponse(url="/supplier-dashboard?error=DB+Error", status_code=303)
 
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT supplier_id FROM SUPPLIERS WHERE user_id = ?", (user["user_id"],))
         supplier = cursor.fetchone()
         if not supplier:
-            return RedirectResponse(url="/user-dashboard?error=Not+registered+as+supplier", status_code=303)
+            return RedirectResponse(url="/supplier-dashboard?error=Not+registered+as+supplier", status_code=303)
 
         supplier_id = supplier["supplier_id"]
 
@@ -1931,9 +2130,9 @@ async def supplier_add_product(request: Request):
     except Exception as e:
         print(f"Error supplier adding product: {e}")
         conn.rollback()
-        return RedirectResponse(url="/user-dashboard?error=Failed+to+add+product", status_code=303)
+        return RedirectResponse(url="/supplier-dashboard?error=Failed+to+add+product", status_code=303)
     finally:
         cursor.close()
         conn.close()
 
-    return RedirectResponse(url="/user-dashboard?success=Product+added+successfully", status_code=303)
+    return RedirectResponse(url="/supplier-dashboard?success=Product+added+successfully", status_code=303)

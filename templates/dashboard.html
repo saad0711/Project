@@ -3,97 +3,123 @@
 {% block title %}Dashboard | IMS{% endblock %}
 
 {% block content %}
-<div class="row mb-5 align-items-center">
-    <div class="col-lg-6">
-        <h2 class="mb-1">Dashboard</h2>
-        <p class="text-muted">Quick overview of users, revenue, orders and stock.</p>
-    </div>
-</div>
-
-<!-- Stats Cards -->
-<div class="row g-4 mb-5">
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm" style="border-left: 4px solid var(--primary) !important;">
-            <div class="card-body p-4">
-                <div class="text-muted small fw-bold mb-2">Total Users</div>
-                <h2 class="display-6 fw-bold mb-0 text-primary">{{ metrics.total_users | default('0') }}</h2>
-            </div>
+<div class="dashboard-container" style="max-height: calc(100vh - 100px); overflow-y: auto; padding-right: 15px;">
+    <div class="row mb-4 align-items-center">
+        <div class="col-lg-6">
+            <h2 class="mb-1">Inventory Dashboard</h2>
+            <p class="text-muted">Real-time overview of your inventory status and recent activity.</p>
         </div>
     </div>
 
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm" style="border-left: 4px solid #5cb85c !important;">
-            <div class="card-body p-4">
-                <div class="text-muted small fw-bold mb-2">Revenue (Delivered)</div>
-                <h2 class="display-6 fw-bold mb-0 text-success">${{ "%.2f"|format(metrics.total_revenue|float) if metrics.total_revenue else '0.00' }}</h2>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm" style="border-left: 4px solid #f0ad4e !important;">
-            <div class="card-body p-4">
-                <div class="text-muted small fw-bold mb-2">Pending Orders</div>
-                <h2 class="display-6 fw-bold mb-0 text-warning">{{ metrics.pending_orders | default('0') }}</h2>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm" style="border-left: 4px solid #d9534f !important;">
-            <div class="card-body p-4">
-                <div class="text-muted small fw-bold mb-2">Low Stock Items</div>
-                <h2 class="display-6 fw-bold mb-0 text-danger">{{ metrics.low_stock_items | default('0') }}</h2>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row g-4">
-    <!-- Top Selling Products -->
-    <div class="col-md-6">
-        <div class="card h-100 shadow-sm border-0">
-            <div class="card-header bg-white border-0 py-4">
-                <h5 class="mb-0 fw-bold">Top Selling Products</h5>
-            </div>
-            <div class="card-body p-0">
-                <ul class="list-group list-group-flush">
-                    {% if top_products %}
-                        {% for p in top_products %}
-                            <li class="list-group-item d-flex justify-content-between align-items-center py-3 px-4 border-0 border-bottom">
-                                <div class="fw-semibold">{{ p.product_name }}</div>
-                                <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3">{{ p.total_sold }} sold</span>
-                            </li>
-                        {% endfor %}
-                    {% else %}
-                        <li class="list-group-item text-center py-5 text-muted border-0">
-                            No sales data yet.
-                        </li>
-                    {% endif %}
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <!-- Summary -->
-    <div class="col-md-6">
-        <div class="card h-100 shadow-sm border-0 bg-primary text-white">
-            <div class="card-body p-5">
-                <h4 class="fw-bold mb-4">Summary</h4>
-                <div class="mb-4">
-                    <p class="mb-0">
-                        {% if metrics.low_stock_items and metrics.low_stock_items > 0 %}
-                            There are <strong>{{ metrics.low_stock_items }}</strong> items below the minimum stock threshold. Consider restocking them soon.
-                        {% else %}
-                            All stock levels are fine. Nothing needs immediate attention.
-                        {% endif %}
-                    </p>
+    <!-- Stats Cards (Top Row) -->
+    <div class="row g-4 mb-5">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm" style="border-left: 4px solid var(--primary) !important;">
+                <div class="card-body p-4">
+                    <div class="text-muted small fw-bold mb-2">Total Inventory Value</div>
+                    <h2 class="display-6 fw-bold mb-0 text-primary">${{ "%.2f"|format(metrics.total_value|float) if metrics.total_value else '0.00' }}</h2>
                 </div>
-                <div class="p-4 rounded-4 bg-white bg-opacity-10">
-                    <div class="fw-bold mb-2">Quick Notes</div>
-                    <p class="small mb-0 opacity-75">
-                        Check the Inventory page for detailed stock levels. Use the Manage Orders page to approve or decline pending orders.
-                    </p>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm" style="border-left: 4px solid #f0ad4e !important;">
+                <div class="card-body p-4">
+                    <div class="text-muted small fw-bold mb-2">Low Stock Alerts</div>
+                    <h2 class="display-6 fw-bold mb-0 text-warning">{{ metrics.low_stock_count | default('0') }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm" style="border-left: 4px solid #d9534f !important;">
+                <div class="card-body p-4">
+                    <div class="text-muted small fw-bold mb-2">Out of Stock</div>
+                    <h2 class="display-6 fw-bold mb-0 text-danger">{{ metrics.out_of_stock_count | default('0') }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lists Row -->
+    <div class="row g-4">
+        <!-- Top Selling Products -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-header bg-white border-0 py-4">
+                    <h5 class="mb-0 fw-bold">Top Selling Items</h5>
+                </div>
+                <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
+                    <ul class="list-group list-group-flush">
+                        {% if top_products %}
+                            {% for p in top_products %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-3 px-4 border-0 border-bottom">
+                                    <div class="fw-semibold">{{ p.product_name }}</div>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3">{{ p.total_sold }} sold</span>
+                                </li>
+                            {% endfor %}
+                        {% else %}
+                            <li class="list-group-item text-center py-5 text-muted border-0">
+                                No sales data yet.
+                            </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity Feed -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-header bg-white border-0 py-4">
+                    <h5 class="mb-0 fw-bold">Recent Activity Feed</h5>
+                </div>
+                <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
+                    <ul class="list-group list-group-flush">
+                        {% if recent_activity %}
+                            {% for act in recent_activity %}
+                                <li class="list-group-item py-3 px-4 border-0 border-bottom">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="fw-semibold">Order #{{ act.order_id }}</span>
+                                        <span class="badge {% if act.status == 'DELIVERED' %}bg-success{% elif act.status == 'PENDING' %}bg-warning{% elif act.status == 'CANCELLED' %}bg-danger{% else %}bg-secondary{% endif %} rounded-pill">
+                                            {{ act.status }}
+                                        </span>
+                                    </div>
+                                    <div class="small text-muted">Requested by {{ act.full_name }}</div>
+                                    <div class="small text-muted" style="font-size: 0.75rem;">{{ act.order_date[:10] }}</div>
+                                </li>
+                            {% endfor %}
+                        {% else %}
+                            <li class="list-group-item text-center py-5 text-muted border-0">
+                                No recent activity.
+                            </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Purchase Order Status -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-header bg-white border-0 py-4">
+                    <h5 class="mb-0 fw-bold">Purchase Order Status</h5>
+                </div>
+                <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
+                    <ul class="list-group list-group-flush">
+                        {% if order_status_counts %}
+                            {% for stat in order_status_counts %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-3 px-4 border-0 border-bottom">
+                                    <div class="fw-semibold">{{ stat.status }}</div>
+                                    <span class="badge bg-secondary rounded-pill px-3">{{ stat.status_count }} orders</span>
+                                </li>
+                            {% endfor %}
+                        {% else %}
+                            <li class="list-group-item text-center py-5 text-muted border-0">
+                                No orders yet.
+                            </li>
+                        {% endif %}
+                    </ul>
                 </div>
             </div>
         </div>
