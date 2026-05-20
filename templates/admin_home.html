@@ -1,39 +1,115 @@
-{% extends "base.html" %}
-
-{% block title %}Home | IMS{% endblock %}
+{% extends "admin_base.html" %}
+{% block title %}Dashboard | IMS Admin{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="hero-section p-5 mb-5 rounded-4 shadow-lg text-center" style="background: linear-gradient(135deg, #2d5a4c 0%, #1a2e26 100%); color: white;">
-    <h1 class="display-4 fw-bold mb-3">Welcome back, {{ user.full_name }}</h1>
-    <p class="lead mb-4 opacity-75">Manage your users, products, orders and stock levels all in one place.</p>
-    <div class="row g-4 mt-4">
-        <div class="col-md-4">
-            <div class="p-4 rounded-4 bg-white bg-opacity-10 backdrop-blur">
-                <h3>Core</h3>
-                <p class="small opacity-50">Users and Suppliers</p>
-                <div class="d-grid gap-2">
-                    <a href="/users" class="btn btn-light btn-sm">Manage Users</a>
-                    <a href="/suppliers" class="btn btn-outline-light btn-sm">Suppliers</a>
-                </div>
+{% set active_page = 'home' %}
+
+<div class="page-header">
+    <div class="page-header-left">
+        <h1 class="page-title">Welcome back, {{ user.full_name }} 👋</h1>
+        <p class="page-subtitle">Here's what's happening in your inventory today.</p>
+    </div>
+    <a href="/manage-orders" class="a-btn a-btn-primary">
+        <i class="bi bi-clipboard2-data-fill"></i> Manage Orders
+    </a>
+</div>
+
+<!-- Stat Cards -->
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-icon indigo"><i class="bi bi-people-fill"></i></div>
+        <div>
+            <div class="stat-label">Total Users</div>
+            <div class="stat-value">—</div>
+            <div class="stat-delta"><a href="/users" class="text-decoration-none" style="color:inherit;">View all →</a></div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon emerald"><i class="bi bi-box-seam-fill"></i></div>
+        <div>
+            <div class="stat-label">Products</div>
+            <div class="stat-value">—</div>
+            <div class="stat-delta"><a href="/products" class="text-decoration-none" style="color:inherit;">View catalog →</a></div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon amber"><i class="bi bi-clipboard2-data-fill"></i></div>
+        <div>
+            <div class="stat-label">Active Orders</div>
+            <div class="stat-value">—</div>
+            <div class="stat-delta"><a href="/manage-orders" class="text-decoration-none" style="color:inherit;">Manage →</a></div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon rose"><i class="bi bi-exclamation-triangle-fill"></i></div>
+        <div>
+            <div class="stat-label">Low Stock</div>
+            <div class="stat-value">—</div>
+            <div class="stat-delta"><a href="/inventory" class="text-decoration-none" style="color:inherit;">View inventory →</a></div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Nav Cards -->
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="a-card" style="border-top: 3px solid #6366f1;">
+            <div class="a-card-body text-center" style="padding: 32px 22px;">
+                <div style="font-size:2.5rem; color:#6366f1; margin-bottom:12px;"><i class="bi bi-people-fill"></i></div>
+                <div style="font-family:'Outfit',sans-serif; font-weight:700; font-size:1.1rem; margin-bottom:6px;">Users</div>
+                <p style="font-size:0.82rem; color:#64748b; margin-bottom:18px;">Manage user accounts, roles & access levels.</p>
+                <a href="/users" class="a-btn a-btn-primary" style="width:100%; justify-content:center;">Open Users</a>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="p-4 rounded-4 bg-white bg-opacity-10 backdrop-blur">
-                <h3>Orders</h3>
-                <p class="small opacity-50">Track and Manage</p>
-                <div class="d-grid gap-2">
-                    <a href="/manage-orders" class="btn btn-light btn-sm">Manage Orders</a>
-                </div>
+    </div>
+    <div class="col-md-4">
+        <div class="a-card" style="border-top: 3px solid #10b981;">
+            <div class="a-card-body text-center" style="padding: 32px 22px;">
+                <div style="font-size:2.5rem; color:#10b981; margin-bottom:12px;"><i class="bi bi-truck-front-fill"></i></div>
+                <div style="font-family:'Outfit',sans-serif; font-weight:700; font-size:1.1rem; margin-bottom:6px;">Suppliers</div>
+                <p style="font-size:0.82rem; color:#64748b; margin-bottom:18px;">Track supplier partnerships and product sourcing.</p>
+                <a href="/suppliers" class="a-btn a-btn-primary" style="background:#10b981; width:100%; justify-content:center;">Open Suppliers</a>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="p-4 rounded-4 bg-white bg-opacity-10 backdrop-blur">
-                <h3>Stock</h3>
-                <p class="small opacity-50">Inventory and Stats</p>
-                <div class="d-grid gap-2">
-                    <a href="/inventory" class="btn btn-light btn-sm">Inventory</a>
-                    <a href="/dashboard" class="btn btn-outline-light btn-sm">Dashboard</a>
-                </div>
+    </div>
+    <div class="col-md-4">
+        <div class="a-card" style="border-top: 3px solid #f59e0b;">
+            <div class="a-card-body text-center" style="padding: 32px 22px;">
+                <div style="font-size:2.5rem; color:#f59e0b; margin-bottom:12px;"><i class="bi bi-layers-fill"></i></div>
+                <div style="font-family:'Outfit',sans-serif; font-weight:700; font-size:1.1rem; margin-bottom:6px;">Inventory</div>
+                <p style="font-size:0.82rem; color:#64748b; margin-bottom:18px;">Monitor stock levels and adjust quantities.</p>
+                <a href="/inventory" class="a-btn a-btn-primary" style="background:#f59e0b; width:100%; justify-content:center;">Open Inventory</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="a-card" style="border-top: 3px solid #ef4444;">
+            <div class="a-card-body text-center" style="padding: 32px 22px;">
+                <div style="font-size:2.5rem; color:#ef4444; margin-bottom:12px;"><i class="bi bi-clipboard2-data-fill"></i></div>
+                <div style="font-family:'Outfit',sans-serif; font-weight:700; font-size:1.1rem; margin-bottom:6px;">Orders</div>
+                <p style="font-size:0.82rem; color:#64748b; margin-bottom:18px;">Full order lifecycle management.</p>
+                <a href="/manage-orders" class="a-btn a-btn-primary" style="background:#ef4444; width:100%; justify-content:center;">Manage Orders</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="a-card" style="border-top: 3px solid #8b5cf6;">
+            <div class="a-card-body text-center" style="padding: 32px 22px;">
+                <div style="font-size:2.5rem; color:#8b5cf6; margin-bottom:12px;"><i class="bi bi-box-seam-fill"></i></div>
+                <div style="font-family:'Outfit',sans-serif; font-weight:700; font-size:1.1rem; margin-bottom:6px;">Products</div>
+                <p style="font-size:0.82rem; color:#64748b; margin-bottom:18px;">Browse catalog with pricing and sales data.</p>
+                <a href="/products" class="a-btn a-btn-primary" style="background:#8b5cf6; width:100%; justify-content:center;">View Products</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="a-card" style="border-top: 3px solid #0ea5e9;">
+            <div class="a-card-body text-center" style="padding: 32px 22px;">
+                <div style="font-size:2.5rem; color:#0ea5e9; margin-bottom:12px;"><i class="bi bi-bar-chart-fill"></i></div>
+                <div style="font-family:'Outfit',sans-serif; font-weight:700; font-size:1.1rem; margin-bottom:6px;">Analytics</div>
+                <p style="font-size:0.82rem; color:#64748b; margin-bottom:18px;">Charts, revenue stats and inventory value.</p>
+                <a href="/dashboard" class="a-btn a-btn-primary" style="background:#0ea5e9; width:100%; justify-content:center;">View Analytics</a>
             </div>
         </div>
     </div>

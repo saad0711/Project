@@ -165,7 +165,7 @@ async def admin_home(request: Request):
     if check:
         return check
     user = get_session_user(request)
-    return templates.TemplateResponse(request=request, name="admin_home.html", context={"user": user})
+    return templates.TemplateResponse(request=request, name="admin_home.html", context={"user": user, "active_page": "home"})
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -1008,6 +1008,7 @@ async def view_users(request: Request):
         "status": status, "message": message,
         "total_users": total_users, "active_users": active_users,
         "sort_by": sort_by, "sort_dir": sort_dir,
+        "active_page": "users",
     })
 
 
@@ -1137,6 +1138,7 @@ async def view_suppliers(request: Request):
     sort_dir = request.query_params.get("sort_dir", "asc")
     status = request.query_params.get("status")
     message = request.query_params.get("message")
+    action = request.query_params.get("action", "")
 
     if sort_by not in SUPPLIER_SORT_COLS:
         sort_by = "name"
@@ -1201,11 +1203,98 @@ async def view_suppliers(request: Request):
         "suppliers": suppliers, "available_users": available_users, "user": user,
         "sort_by": sort_by, "sort_dir": sort_dir,
         "status": status, "message": message,
+        "action": action,
+        "active_page": "add-supplier" if action == "add" else "suppliers",
     })
+
+
+@app.get("/add-supplier", response_class=HTMLResponse)
+async def add_supplier_page(request: Request):
+    check = require_admin(request)
+    if check:
+        return check
+    user = get_session_user(request)
+    error = request.query_params.get("error", "")
+    return templates.TemplateResponse(request=request, name="add_supplier.html", context={
+        "user": user,
+        "error": error,
+        "active_page": "add-supplier",
+    })
+
+
+@app.post("/add-supplier")
+async def add_supplier_submit(request: Request):
+    check = require_admin(request)
+    if check:
+        return check
+
+    form = await request.form()
+    full_name      = form.get("full_name", "").strip()
+    company_name   = form.get("company_name", "").strip()
+    email          = form.get("email", "").strip().lower()
+    password       = form.get("password", "").strip()
+    supply_category = form.get("supply_category", "").strip()
+    rating         = form.get("rating", "3").strip()
+    contact_phone  = form.get("contact_phone", "").strip()
+    address        = form.get("address", "").strip()
+    status         = form.get("status", "Active").strip()
+
+    if not full_name or not email or not password:
+        err = quote_plus("Full name, email and password are required.")
+        return RedirectResponse(url=f"/add-supplier?error={err}", status_code=303)
+
+    conn = database.get_connection()
+    if conn is None:
+        err = quote_plus("Database connection failed.")
+        return RedirectResponse(url=f"/add-supplier?error={err}", status_code=303)
+
+    cursor = conn.cursor()
+    try:
+        ## check email is not already taken
+        cursor.execute("SELECT user_id FROM USERS WHERE email = ?", (email,))
+        if cursor.fetchone():
+            err = quote_plus("An account with that email already exists.")
+            return RedirectResponse(url=f"/add-supplier?error={err}", status_code=303)
+
+        ## create the user account with Supplier role
+        hashed = database.hash_password(password)
+        cursor.execute(
+            "INSERT INTO USERS (full_name, email, password, role, status, company_name) "
+            "VALUES (?, ?, ?, 'Supplier', ?, ?)",
+            (full_name, email, hashed, status, company_name or None)
+        )
+        new_user_id = cursor.lastrowid
+
+        ## create the supplier profile linked to that user
+        cursor.execute(
+            "INSERT INTO SUPPLIERS (user_id, contact_phone, address, rating, supply_category) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (new_user_id, contact_phone or None, address or None, rating, supply_category or None)
+        )
+        conn.commit()
+
+        ## send welcome email (non-blocking)
+        try:
+            email_utils.send_welcome_email(to_email=email, full_name=full_name)
+        except Exception as mail_err:
+            print(f"[add-supplier] email dispatch failed (non-fatal): {mail_err}")
+
+        msg = quote_plus(f"Supplier '{full_name}' created successfully!")
+        return RedirectResponse(url=f"/suppliers?status=success&message={msg}", status_code=303)
+
+    except Exception as e:
+        print(f"Error creating supplier: {e}")
+        conn.rollback()
+        err = quote_plus("Failed to create supplier. Please try again.")
+        return RedirectResponse(url=f"/add-supplier?error={err}", status_code=303)
+    finally:
+        cursor.close()
+        conn.close()
 
 
 @app.post("/suppliers/add")
 async def add_supplier(request: Request):
+
     check = require_admin(request)
     if check:
         return check
@@ -1549,6 +1638,7 @@ async def manage_orders(request: Request):
         "analytics": analytics,
         "error": request.query_params.get("error", ""),
         "success": request.query_params.get("success", ""),
+        "active_page": "orders",
     })
 
 
@@ -1863,7 +1953,7 @@ async def get_inventory(request: Request):
         conn.close()
 
     return templates.TemplateResponse(request=request, name="inventory.html", context={
-        "inventory": inventory, "user": user,
+        "inventory": inventory, "user": user, "active_page": "inventory",
     })
 
 
@@ -1900,8 +1990,62 @@ async def adjust_stock(request: Request):
 
 # ---------- ADMIN DASHBOARD ----------
 
+
+@app.get("/products", response_class=HTMLResponse)
+async def get_products(request: Request):
+    check = require_admin(request)
+    if check:
+        return check
+
+    user = get_session_user(request)
+    sort_by  = request.query_params.get("sort_by", "name")
+    sort_dir = request.query_params.get("sort_dir", "asc")
+
+    PROD_SORT_COLS = {
+        "name": "p.product_name", "category": "p.category",
+        "cost": "p.unit_cost", "price": "p.selling_price",
+        "margin": "(p.selling_price - p.unit_cost)",
+        "supplier": "s.full_name", "sold": "total_sold",
+    }
+    if sort_by not in PROD_SORT_COLS:
+        sort_by = "name"
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = "asc"
+    order_clause = f"{PROD_SORT_COLS[sort_by]} {sort_dir.upper()}"
+
+    conn = database.get_connection()
+    if conn is None:
+        return HTMLResponse("DB Connection Failed", status_code=500)
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            f"SELECT p.product_id, p.product_name, p.category, p.unit_cost, p.selling_price, "
+            f"(p.selling_price - p.unit_cost) AS margin, "
+            f"COALESCE(s.full_name, 'N/A') AS supplier_name, p.supplier_id, "
+            f"COALESCE((SELECT SUM(oi.quantity) FROM ORDER_ITEMS oi WHERE oi.product_id = p.product_id), 0) AS total_sold "
+            f"FROM PRODUCTS p LEFT JOIN SUPPLIERS sp ON p.supplier_id = sp.supplier_id "
+            f"LEFT JOIN USERS s ON sp.user_id = s.user_id "
+            f"ORDER BY {order_clause}"
+        )
+        products = rows_to_dicts(cursor.fetchall())
+    except Exception as e:
+        print(f"Error fetching products: {e}")
+        products = []
+    finally:
+        cursor.close()
+        conn.close()
+
+    return templates.TemplateResponse(request=request, name="products.html", context={
+        "products": products, "user": user,
+        "sort_by": sort_by, "sort_dir": sort_dir,
+        "active_page": "products",
+    })
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 async def get_dashboard(request: Request):
+
     check = require_admin(request)
     if check:
         return check
@@ -1990,6 +2134,7 @@ async def get_dashboard(request: Request):
         "recent_activity": recent_activity,
         "order_status_counts": order_status_counts,
         "user": user,
+        "active_page": "analytics",
     })
 
 

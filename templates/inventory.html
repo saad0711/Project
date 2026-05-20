@@ -1,79 +1,71 @@
-{% extends "base.html" %}
-
-{% block title %}Inventory | IMS{% endblock %}
+{% extends "admin_base.html" %}
+{% block title %}Inventory | IMS Admin{% endblock %}
+{% block page_title %}Inventory{% endblock %}
 
 {% block content %}
-<div class="row mb-4 align-items-center">
-    <div class="col-lg-6">
-        <h1 class="mb-1 text-primary"><i class="bi bi-grid-3x3-gap me-2 text-accent"></i>Inventory Catalog</h1>
-        <p class="text-muted mb-0"><i class="bi bi-info-circle me-1"></i>Monitor item quantities and edit threshold levels. Low stock items are automatically flagged.</p>
+{% set active_page = 'inventory' %}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Inventory Catalog</h1>
+        <p class="page-subtitle">Monitor stock levels and adjust quantities. Low-stock items are flagged automatically.</p>
     </div>
-    <div class="col-lg-6 text-lg-end">
-        <button class="btn btn-outline-primary shadow-sm" onclick="location.reload()">
-            <i class="bi bi-arrow-clockwise me-1"></i>Refresh Catalog
-        </button>
-    </div>
+    <button class="a-btn a-btn-ghost" onclick="location.reload()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
 </div>
 
-<div class="card border-0 shadow-medium">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th class="ps-4">Product ID</th>
-                        <th>Product Name</th>
-                        <th>Current Stock</th>
-                        <th>Min Threshold</th>
-                        <th>Stock Status</th>
-                        <th>Last Restocked</th>
-                        <th class="text-center" style="min-width: 180px;">Adjust Quantity</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if inventory %}
-                        {% for item in inventory %}
-                        <tr class="{% if item.current_stock < item.min_threshold %}low-stock-alert-row{% endif %}">
-                            <td class="ps-4 fw-bold text-secondary">#{{ item.product_id }}</td>
-                            <td class="fw-bold text-primary">{{ item.product_name }}</td>
-                            <td class="fs-5 fw-bold text-dark">{{ item.current_stock }}</td>
-                            <td class="text-muted fw-semibold">{{ item.min_threshold }}</td>
-                            <td>
-                                {% if item.current_stock < item.min_threshold %}
-                                    <span class="status-indicator-pill status-cancelled">Low Stock</span>
-                                {% elif item.current_stock < item.min_threshold * 2 %}
-                                    <span class="status-indicator-pill status-inactive">Warning</span>
-                                {% else %}
-                                    <span class="status-indicator-pill status-active">In Stock</span>
-                                {% endif %}
-                            </td>
-                            <td class="small text-muted"><i class="bi bi-calendar3 me-1"></i>{{ item.last_restock_date }}</td>
-                            <td class="text-center">
-                                <form action="/adjust-stock" method="POST" class="d-inline-flex align-items-center justify-content-center">
-                                    <input type="hidden" name="product_id" value="{{ item.product_id }}">
-                                    <div class="stepper-container shadow-sm me-2">
-                                        <button type="button" class="stepper-btn" onclick="const inp = this.nextElementSibling; inp.value = Math.max(0, parseInt(inp.value) - 1);">-</button>
-                                        <input type="number" name="new_qty" class="stepper-input" value="{{ item.current_stock }}" min="0" required>
-                                        <button type="button" class="stepper-btn" onclick="const inp = this.previousElementSibling; inp.value = parseInt(inp.value) + 1;">+</button>
-                                    </div>
-                                    <button type="submit" class="btn btn-sm btn-primary py-1 px-3" style="border-radius: 8px;" title="Set Quantity">
-                                        <i class="bi bi-check-lg"></i>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td colspan="7" class="text-center text-muted py-5">
-                                <i class="bi bi-boxes fs-1 mb-3 d-block"></i>
-                                <em>No products found in inventory listings.</em>
-                            </td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
+<div class="a-card">
+    <div class="a-table-wrap">
+        <table class="a-table">
+            <thead>
+                <tr>
+                    <th>Product ID</th>
+                    <th>Product Name</th>
+                    <th>Current Stock</th>
+                    <th>Min Threshold</th>
+                    <th>Stock Status</th>
+                    <th>Last Restocked</th>
+                    <th class="text-center" style="min-width:190px;">Adjust Quantity</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if inventory %}{% for item in inventory %}
+                <tr class="{% if item.current_stock < item.min_threshold %}low-stock-row{% endif %}">
+                    <td style="font-weight:700;color:#94a3b8;">#{{ item.product_id }}</td>
+                    <td style="font-weight:700;color:#0f172a;">{{ item.product_name }}</td>
+                    <td style="font-size:1.1rem;font-weight:800;color:#0f172a;">{{ item.current_stock }}</td>
+                    <td style="color:#64748b;font-weight:600;">{{ item.min_threshold }}</td>
+                    <td>
+                        {% if item.current_stock < item.min_threshold %}
+                            <span class="pill pill-rose">Low Stock</span>
+                        {% elif item.current_stock < item.min_threshold * 2 %}
+                            <span class="pill pill-amber">Warning</span>
+                        {% else %}
+                            <span class="pill pill-emerald">In Stock</span>
+                        {% endif %}
+                    </td>
+                    <td style="color:#94a3b8;font-size:0.82rem;"><i class="bi bi-calendar3 me-1"></i>{{ item.last_restock_date }}</td>
+                    <td class="text-center">
+                        <form action="/adjust-stock" method="POST" class="d-inline-flex align-items-center justify-content-center gap-2">
+                            <input type="hidden" name="product_id" value="{{ item.product_id }}">
+                            <div class="stepper-container">
+                                <button type="button" class="stepper-btn" onclick="const inp=this.nextElementSibling;inp.value=Math.max(0,parseInt(inp.value)-1);">−</button>
+                                <input type="number" name="new_qty" class="stepper-input" value="{{ item.current_stock }}" min="0" required>
+                                <button type="button" class="stepper-btn" onclick="const inp=this.previousElementSibling;inp.value=parseInt(inp.value)+1;">+</button>
+                            </div>
+                            <button type="submit" class="a-btn a-btn-primary a-btn-sm"><i class="bi bi-check-lg"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr><td colspan="7" class="text-center" style="padding:48px;color:#94a3b8;">
+                    <i class="bi bi-boxes" style="font-size:2.5rem;display:block;margin-bottom:12px;"></i>No products found in inventory.
+                </td></tr>
+                {% endif %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endblock %}

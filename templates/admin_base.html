@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Admin | IMS{% endblock %}</title>
+    <meta name="description" content="IMS Admin Panel – Inventory Management System">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="admin-body">
+
+    <!-- Sidebar -->
+    <aside class="admin-sidebar" id="adminSidebar">
+        <!-- Brand -->
+        <div class="sidebar-brand">
+            <div class="sidebar-brand-icon">
+                <i class="bi bi-boxes"></i>
+            </div>
+            <div class="sidebar-brand-text">
+                <span class="brand-name">IMS</span>
+                <span class="brand-sub">Admin Panel</span>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="sidebar-nav">
+            <div class="nav-section-label">Main Menu</div>
+
+            <a href="/home" class="sidebar-link {% if active_page == 'home' %}active{% endif %}" id="nav-home">
+                <span class="sidebar-link-icon"><i class="bi bi-grid-1x2-fill"></i></span>
+                <span class="sidebar-link-text">Dashboard</span>
+            </a>
+
+            <a href="/dashboard" class="sidebar-link {% if active_page == 'analytics' %}active{% endif %}" id="nav-analytics">
+                <span class="sidebar-link-icon"><i class="bi bi-bar-chart-fill"></i></span>
+                <span class="sidebar-link-text">Analytics</span>
+            </a>
+
+            <div class="nav-section-label mt-3">Management</div>
+
+            <a href="/users" class="sidebar-link {% if active_page == 'users' %}active{% endif %}" id="nav-users">
+                <span class="sidebar-link-icon"><i class="bi bi-people-fill"></i></span>
+                <span class="sidebar-link-text">Users</span>
+            </a>
+
+            <a href="/suppliers" class="sidebar-link {% if active_page == 'suppliers' %}active{% endif %}" id="nav-suppliers">
+                <span class="sidebar-link-icon"><i class="bi bi-truck-front-fill"></i></span>
+                <span class="sidebar-link-text">Suppliers</span>
+            </a>
+
+            <a href="/add-supplier" class="sidebar-link {% if active_page == 'add-supplier' %}active{% endif %}" id="nav-add-supplier" style="padding-left:32px;">
+                <span class="sidebar-link-icon"><i class="bi bi-person-plus-fill"></i></span>
+                <span class="sidebar-link-text">Add Supplier</span>
+            </a>
+
+            <a href="/products" class="sidebar-link {% if active_page == 'products' %}active{% endif %}" id="nav-products">
+                <span class="sidebar-link-icon"><i class="bi bi-box-seam-fill"></i></span>
+                <span class="sidebar-link-text">Products</span>
+            </a>
+
+            <div class="nav-section-label mt-3">Operations</div>
+
+            <a href="/manage-orders" class="sidebar-link {% if active_page == 'orders' %}active{% endif %}" id="nav-orders">
+                <span class="sidebar-link-icon"><i class="bi bi-clipboard2-data-fill"></i></span>
+                <span class="sidebar-link-text">Orders</span>
+                {% if pending_count and pending_count > 0 %}
+                <span class="sidebar-badge">{{ pending_count }}</span>
+                {% endif %}
+            </a>
+
+            <a href="/inventory" class="sidebar-link {% if active_page == 'inventory' %}active{% endif %}" id="nav-inventory">
+                <span class="sidebar-link-icon"><i class="bi bi-layers-fill"></i></span>
+                <span class="sidebar-link-text">Inventory</span>
+            </a>
+
+            <a href="/create-order" class="sidebar-link {% if active_page == 'create-order' %}active{% endif %}" id="nav-create-order">
+                <span class="sidebar-link-icon"><i class="bi bi-plus-circle-fill"></i></span>
+                <span class="sidebar-link-text">Create Order</span>
+            </a>
+        </nav>
+
+        <!-- Sidebar Footer -->
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <div class="sidebar-user-avatar">{{ (user.full_name or 'A')[0] | upper }}</div>
+                <div class="sidebar-user-info">
+                    <div class="sidebar-user-name">{{ user.full_name }}</div>
+                    <div class="sidebar-user-role">Administrator</div>
+                </div>
+            </div>
+            <a href="/logout" class="sidebar-logout" title="Logout">
+                <i class="bi bi-box-arrow-right"></i>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Top Bar -->
+    <header class="admin-topbar" id="adminTopbar">
+        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+            <i class="bi bi-list"></i>
+        </button>
+
+        <div class="topbar-breadcrumb">
+            <span class="topbar-page-title">{% block page_title %}Dashboard{% endblock %}</span>
+        </div>
+
+        <div class="topbar-actions">
+            <div class="topbar-time" id="topbarTime"></div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="admin-main" id="adminMain">
+        <div class="admin-content">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Sidebar toggle
+        function toggleSidebar() {
+            const sidebar = document.getElementById('adminSidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const main = document.getElementById('adminMain');
+            const topbar = document.getElementById('adminTopbar');
+
+            sidebar.classList.toggle('collapsed');
+            overlay.classList.toggle('active');
+            main.classList.toggle('sidebar-collapsed');
+            topbar.classList.toggle('sidebar-collapsed');
+        }
+
+        // Live clock
+        function updateClock() {
+            const el = document.getElementById('topbarTime');
+            if (!el) return;
+            const now = new Date();
+            el.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+        updateClock();
+        setInterval(updateClock, 60000);
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

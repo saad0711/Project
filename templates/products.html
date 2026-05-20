@@ -1,73 +1,64 @@
-{% extends "base.html" %}
-
-{% block title %}Products | IMS{% endblock %}
+{% extends "admin_base.html" %}
+{% block title %}Products | IMS Admin{% endblock %}
+{% block page_title %}Products{% endblock %}
 
 {% block content %}
+{% set active_page = 'products' %}
 
 {% macro sort_link(col, label) %}
 {% set next_dir = 'asc' if (sort_by == col and sort_dir == 'desc') else 'desc' if sort_by == col else 'asc' %}
 {% set arrow = ' &#9650;' if (sort_by == col and sort_dir == 'asc') else ' &#9660;' if (sort_by == col and sort_dir == 'desc') else '' %}
-<a href="/products?sort_by={{ col }}&sort_dir={{ next_dir }}" class="text-decoration-none text-muted">{{ label }}{{ arrow | safe }}</a>
+<a href="/products?sort_by={{ col }}&sort_dir={{ next_dir }}" class="text-decoration-none" style="color:inherit;">{{ label }}{{ arrow | safe }}</a>
 {% endmacro %}
 
-<div class="row mb-5 align-items-center">
-    <div class="col-lg-6">
-        <h2 class="mb-1">Products</h2>
-        <p class="text-muted">All products with pricing, supplier info and sales data. Click any column header to sort.</p>
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Products</h1>
+        <p class="page-subtitle">Full product catalog with pricing, supplier info and sales performance.</p>
     </div>
 </div>
 
-<div class="table-container">
-    <table class="table table-hover">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>{{ sort_link("name", "Name") }}</th>
-                <th>{{ sort_link("category", "Category") }}</th>
-                <th>{{ sort_link("cost", "Unit Cost") }}</th>
-                <th>{{ sort_link("price", "Selling Price") }}</th>
-                <th>{{ sort_link("margin", "Margin") }}</th>
-                <th>{{ sort_link("supplier", "Supplier") }}</th>
-                <th>{{ sort_link("sold", "Units Sold") }}</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% if products %}
-                {% for p in products %}
+<div class="a-card">
+    <div class="a-table-wrap">
+        <table class="a-table">
+            <thead>
                 <tr>
-                    <td class="fw-bold text-muted">#{{ p.product_id }}</td>
-                    <td class="fw-semibold">{{ p.product_name }}</td>
-                    <td><span class="badge bg-light text-dark border">{{ p.category }}</span></td>
-                    <td class="text-danger">-${{ "%.2f"|format(p.unit_cost|float) }}</td>
-                    <td class="text-success fw-bold">${{ "%.2f"|format(p.selling_price|float) }}</td>
+                    <th>ID</th>
+                    <th>{{ sort_link("name","Product Name") }}</th>
+                    <th>{{ sort_link("category","Category") }}</th>
+                    <th>{{ sort_link("cost","Unit Cost") }}</th>
+                    <th>{{ sort_link("price","Selling Price") }}</th>
+                    <th>{{ sort_link("margin","Margin") }}</th>
+                    <th>{{ sort_link("supplier","Supplier") }}</th>
+                    <th>{{ sort_link("sold","Units Sold") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if products %}{% for p in products %}
+                <tr>
+                    <td style="font-weight:700;color:#94a3b8;">#{{ p.product_id }}</td>
+                    <td style="font-weight:600;color:#0f172a;">{{ p.product_name }}</td>
+                    <td><span class="pill pill-slate">{{ p.category }}</span></td>
+                    <td style="color:#ef4444;font-weight:600;">−${{ "%.2f"|format(p.unit_cost|float) }}</td>
+                    <td style="color:#10b981;font-weight:700;">${{ "%.2f"|format(p.selling_price|float) }}</td>
+                    <td><span class="pill pill-emerald">+${{ "%.2f"|format(p.margin|float) }}</span></td>
                     <td>
-                        <span class="badge bg-success bg-opacity-10 text-success">
-                            +${{ "%.2f"|format(p.margin|float) }}
-                        </span>
+                        <div style="font-weight:600;font-size:0.85rem;">{{ p.supplier_name }}</div>
+                        {% if p.supplier_id %}<div style="font-size:0.72rem;color:#94a3b8;">ID: {{ p.supplier_id }}</div>{% endif %}
                     </td>
                     <td>
-                        <div class="small fw-semibold">{{ p.supplier_name }}</div>
-                        {% if p.supplier_id %}
-                        <div class="text-muted smallest">ID: {{ p.supplier_id }}</div>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if p.total_sold and p.total_sold > 0 %}
-                            <span class="badge bg-primary bg-opacity-10 text-primary">{{ p.total_sold }} sold</span>
-                        {% else %}
-                            <span class="text-muted small">0</span>
-                        {% endif %}
+                        {% if p.total_sold and p.total_sold > 0 %}<span class="pill pill-indigo">{{ p.total_sold }} sold</span>
+                        {% else %}<span style="color:#94a3b8;">0</span>{% endif %}
                     </td>
                 </tr>
                 {% endfor %}
-            {% else %}
-                <tr>
-                    <td colspan="8" class="text-center text-muted py-5">
-                        <em>No products in the database yet.</em>
-                    </td>
-                </tr>
-            {% endif %}
-        </tbody>
-    </table>
+                {% else %}
+                <tr><td colspan="8" class="text-center" style="padding:48px;color:#94a3b8;">
+                    <i class="bi bi-box-seam" style="font-size:2.5rem;display:block;margin-bottom:12px;"></i>No products in the database yet.
+                </td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
 </div>
 {% endblock %}
