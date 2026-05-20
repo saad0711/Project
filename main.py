@@ -6,6 +6,7 @@ from starlette.middleware.sessions import SessionMiddleware
 import database
 from datetime import datetime
 from urllib.parse import quote_plus
+import email_utils
 
 app = FastAPI(title="Inventory Management System")
 app.add_middleware(SessionMiddleware, secret_key="ims-secret-key-370")
@@ -235,16 +236,14 @@ async def register_page(request: Request):
 async def register_submit(request: Request):
     form = await request.form()
     full_name = form.get("full_name", "").strip()
-    email = form.get("email", "").strip().lower()
-    password = form.get("password", "").strip()
-    role = form.get("role", "User").strip()
-    company_name = form.get("company_name", "").strip()
+    email     = form.get("email", "").strip().lower()
+    password  = form.get("password", "").strip()
+
+    # Public self-registration is always a plain User — roles are assigned by Admin
+    role = "User"
 
     if not full_name or not email or not password:
         return RedirectResponse(url="/register?error=Please+fill+all+required+fields", status_code=303)
-
-    if role not in ("Admin", "User"):
-        role = "User"
 
     conn = database.get_connection()
     if conn is None:
@@ -254,12 +253,19 @@ async def register_submit(request: Request):
     try:
         hashed = database.hash_password(password)
         cursor.execute(
-            "INSERT INTO USERS (full_name, email, password, role, company_name, status) "
-            "VALUES (?, ?, ?, ?, ?, 'Active')",
-            (full_name, email, hashed, role, company_name or None)
+            "INSERT INTO USERS (full_name, email, password, role, status) "
+            "VALUES (?, ?, ?, ?, 'Active')",
+            (full_name, email, hashed, role)
         )
         conn.commit()
-        msg = quote_plus("Account created! You can now log in.")
+
+        # Fire welcome email — non-blocking; failure never stops the redirect
+        try:
+            email_utils.send_welcome_email(to_email=email, full_name=full_name)
+        except Exception as mail_err:
+            print(f"[register] email dispatch failed (non-fatal): {mail_err}")
+
+        msg = quote_plus("Account created! Check your inbox for a welcome email.")
         return RedirectResponse(url=f"/login?success={msg}", status_code=303)
     except Exception as e:
         print(f"Register error: {e}")

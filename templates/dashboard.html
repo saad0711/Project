@@ -3,126 +3,255 @@
 {% block title %}Dashboard | IMS{% endblock %}
 
 {% block content %}
-<div class="dashboard-container" style="max-height: calc(100vh - 100px); overflow-y: auto; padding-right: 15px;">
-    <div class="row mb-4 align-items-center">
-        <div class="col-lg-6">
-            <h2 class="mb-1">Inventory Dashboard</h2>
-            <p class="text-muted">Real-time overview of your inventory status and recent activity.</p>
-        </div>
+<div class="dashboard-container">
+    <!-- Header Hero Section -->
+    <div class="premium-hero mb-4">
+        <h1 class="premium-hero-title">Inventory Dashboard</h1>
+        <p class="text-white-50 mb-0">Real-time overview of your enterprise inventory, sales performance, and recent logistical actions.</p>
     </div>
 
     <!-- Stats Cards (Top Row) -->
-    <div class="row g-4 mb-5">
+    <div class="row g-4 mb-4">
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm" style="border-left: 4px solid var(--primary) !important;">
-                <div class="card-body p-4">
-                    <div class="text-muted small fw-bold mb-2">Total Inventory Value</div>
-                    <h2 class="display-6 fw-bold mb-0 text-primary">${{ "%.2f"|format(metrics.total_value|float) if metrics.total_value else '0.00' }}</h2>
+            <div class="card border-0 shadow-soft metric-card p-2" style="border-left: 4px solid var(--primary) !important;">
+                <div class="card-body d-flex align-items-center justify-content-between p-4">
+                    <div>
+                        <div class="metric-title mb-2">Total Inventory Value</div>
+                        <h2 class="metric-value text-primary mb-0">${{ "%.2f"|format(metrics.total_value|float) if metrics.total_value else '0.00' }}</h2>
+                    </div>
+                    <div class="bg-primary bg-opacity-10 p-3 rounded-circle" style="color: var(--primary);">
+                        <i class="bi bi-currency-dollar fs-2"></i>
+                    </div>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm" style="border-left: 4px solid #f0ad4e !important;">
-                <div class="card-body p-4">
-                    <div class="text-muted small fw-bold mb-2">Low Stock Alerts</div>
-                    <h2 class="display-6 fw-bold mb-0 text-warning">{{ metrics.low_stock_count | default('0') }}</h2>
+            <div class="card border-0 shadow-soft metric-card warning p-2" style="border-left: 4px solid var(--warning) !important;">
+                <div class="card-body d-flex align-items-center justify-content-between p-4">
+                    <div>
+                        <div class="metric-title mb-2">Low Stock Alerts</div>
+                        <h2 class="metric-value text-warning mb-0">{{ metrics.low_stock_count | default('0') }}</h2>
+                    </div>
+                    <div class="bg-warning bg-opacity-10 p-3 rounded-circle" style="color: var(--warning);">
+                        <i class="bi bi-exclamation-triangle fs-2"></i>
+                    </div>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm" style="border-left: 4px solid #d9534f !important;">
-                <div class="card-body p-4">
-                    <div class="text-muted small fw-bold mb-2">Out of Stock</div>
-                    <h2 class="display-6 fw-bold mb-0 text-danger">{{ metrics.out_of_stock_count | default('0') }}</h2>
+            <div class="card border-0 shadow-soft metric-card danger p-2" style="border-left: 4px solid var(--danger) !important;">
+                <div class="card-body d-flex align-items-center justify-content-between p-4">
+                    <div>
+                        <div class="metric-title mb-2">Out of Stock</div>
+                        <h2 class="metric-value text-danger mb-0">{{ metrics.out_of_stock_count | default('0') }}</h2>
+                    </div>
+                    <div class="bg-danger bg-opacity-10 p-3 rounded-circle" style="color: var(--danger);">
+                        <i class="bi bi-x-circle fs-2"></i>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Lists Row -->
+    <!-- Analytics & Activity Section -->
     <div class="row g-4">
-        <!-- Top Selling Products -->
-        <div class="col-md-4">
-            <div class="card h-100 shadow-sm border-0">
-                <div class="card-header bg-white border-0 py-4">
-                    <h5 class="mb-0 fw-bold">Top Selling Items</h5>
+        <!-- Interactive Analytics Charts (Left Side) -->
+        <div class="col-lg-8">
+            <div class="row g-4">
+                <!-- Top Selling Products Chart -->
+                <div class="col-md-12">
+                    <div class="card border-0 shadow-soft h-100">
+                        <div class="card-header bg-white border-0 pt-4 pb-0">
+                            <h5 class="fw-bold text-primary mb-1"><i class="bi bi-bar-chart-fill me-2"></i>Product Sales Analytics</h5>
+                            <p class="text-muted small mb-0">Historical units sold for top-performing items</p>
+                        </div>
+                        <div class="card-body p-4 d-flex align-items-center justify-content-center" style="min-height: 280px;">
+                            {% if top_products %}
+                                <div style="width: 100%; height: 260px;">
+                                    <canvas id="topProductsChart"></canvas>
+                                </div>
+                            {% else %}
+                                <div class="text-muted small text-center py-5">
+                                    <i class="bi bi-graph-down fs-2 mb-2 d-block"></i> No sales data registered yet.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
-                    <ul class="list-group list-group-flush">
-                        {% if top_products %}
-                            {% for p in top_products %}
-                                <li class="list-group-item d-flex justify-content-between align-items-center py-3 px-4 border-0 border-bottom">
-                                    <div class="fw-semibold">{{ p.product_name }}</div>
-                                    <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3">{{ p.total_sold }} sold</span>
-                                </li>
-                            {% endfor %}
-                        {% else %}
-                            <li class="list-group-item text-center py-5 text-muted border-0">
-                                No sales data yet.
-                            </li>
-                        {% endif %}
-                    </ul>
+
+                <!-- Order Status Chart -->
+                <div class="col-md-12">
+                    <div class="card border-0 shadow-soft h-100">
+                        <div class="card-header bg-white border-0 pt-4 pb-0">
+                            <h5 class="fw-bold text-primary mb-1"><i class="bi bi-pie-chart-fill me-2"></i>Logistics & Order Distribution</h5>
+                            <p class="text-muted small mb-0">Breakdown of orders by fulfillment lifecycle state</p>
+                        </div>
+                        <div class="card-body p-4 d-flex align-items-center justify-content-center" style="min-height: 280px;">
+                            {% if order_status_counts %}
+                                <div style="width: 100%; max-width: 320px; height: 260px;">
+                                    <canvas id="orderStatusChart"></canvas>
+                                </div>
+                            {% else %}
+                                <div class="text-muted small text-center py-5">
+                                    <i class="bi bi-cart-x fs-2 mb-2 d-block"></i> No active orders tracked.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Recent Activity Feed -->
-        <div class="col-md-4">
-            <div class="card h-100 shadow-sm border-0">
-                <div class="card-header bg-white border-0 py-4">
-                    <h5 class="mb-0 fw-bold">Recent Activity Feed</h5>
+        <!-- Recent Activity Feed Timeline (Right Side) -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-soft h-100">
+                <div class="card-header bg-white border-0 pt-4 pb-0">
+                    <h5 class="fw-bold text-primary mb-1"><i class="bi bi-activity me-2"></i>Live System Stream</h5>
+                    <p class="text-muted small mb-0">Chronological feed of user order activities</p>
                 </div>
-                <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
-                    <ul class="list-group list-group-flush">
-                        {% if recent_activity %}
+                <div class="card-body p-4" style="max-height: 600px; overflow-y: auto;">
+                    {% if recent_activity %}
+                        <div class="premium-timeline">
                             {% for act in recent_activity %}
-                                <li class="list-group-item py-3 px-4 border-0 border-bottom">
-                                    <div class="d-flex justify-content-between align-items-center mb-1">
-                                        <span class="fw-semibold">Order #{{ act.order_id }}</span>
-                                        <span class="badge {% if act.status == 'DELIVERED' %}bg-success{% elif act.status == 'PENDING' %}bg-warning{% elif act.status == 'CANCELLED' %}bg-danger{% else %}bg-secondary{% endif %} rounded-pill">
-                                            {{ act.status }}
-                                        </span>
+                                <div class="premium-timeline-item">
+                                    <span class="premium-timeline-icon {% if act.status == 'DELIVERED' %}success{% elif act.status == 'PENDING' %}warning{% elif act.status == 'CANCELLED' %}danger{% endif %}"></span>
+                                    <div class="premium-timeline-content">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="fw-bold text-primary small">Order #{{ act.order_id }}</span>
+                                            <span class="status-indicator-pill {% if act.status == 'DELIVERED' %}status-active{% elif act.status == 'PENDING' %}status-inactive{% elif act.status == 'CANCELLED' %}status-cancelled{% else %}status-active{% endif %}" style="padding: 0.15rem 0.5rem; font-size: 0.62rem;">
+                                                {{ act.status }}
+                                            </span>
+                                        </div>
+                                        <div class="small text-muted mb-1" style="font-size: 0.82rem;"><i class="bi bi-person me-1"></i>{{ act.full_name }}</div>
+                                        <div class="smallest text-muted" style="font-size: 0.72rem;"><i class="bi bi-clock me-1"></i>{{ act.order_date[:10] }}</div>
                                     </div>
-                                    <div class="small text-muted">Requested by {{ act.full_name }}</div>
-                                    <div class="small text-muted" style="font-size: 0.75rem;">{{ act.order_date[:10] }}</div>
-                                </li>
+                                </div>
                             {% endfor %}
-                        {% else %}
-                            <li class="list-group-item text-center py-5 text-muted border-0">
-                                No recent activity.
-                            </li>
-                        {% endif %}
-                    </ul>
-                </div>
-            </div>
-        </div>
-
-        <!-- Purchase Order Status -->
-        <div class="col-md-4">
-            <div class="card h-100 shadow-sm border-0">
-                <div class="card-header bg-white border-0 py-4">
-                    <h5 class="mb-0 fw-bold">Purchase Order Status</h5>
-                </div>
-                <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
-                    <ul class="list-group list-group-flush">
-                        {% if order_status_counts %}
-                            {% for stat in order_status_counts %}
-                                <li class="list-group-item d-flex justify-content-between align-items-center py-3 px-4 border-0 border-bottom">
-                                    <div class="fw-semibold">{{ stat.status }}</div>
-                                    <span class="badge bg-secondary rounded-pill px-3">{{ stat.status_count }} orders</span>
-                                </li>
-                            {% endfor %}
-                        {% else %}
-                            <li class="list-group-item text-center py-5 text-muted border-0">
-                                No orders yet.
-                            </li>
-                        {% endif %}
-                    </ul>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5 text-muted small">
+                            <i class="bi bi-clock-history fs-2 mb-2 d-block"></i> No recent activity tracked.
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Interactive Chart.js Scripts -->
+{% if top_products or order_status_counts %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Colors corresponding to our custom HSL tokens
+        const colorPrimary = 'hsl(164, 43%, 22%)';
+        const colorPrimaryLight = 'hsl(164, 35%, 34%)';
+        const colorAccent = 'hsl(158, 28%, 64%)';
+        const colorAccentLight = 'hsl(158, 28%, 75%)';
+        const colorWarning = 'hsl(36, 96%, 50%)';
+        const colorDanger = 'hsl(354, 70%, 54%)';
+        const colorInfo = 'hsl(190, 75%, 45%)';
+
+        // 1. Top Selling Products horizontal bar chart
+        {% if top_products %}
+        const topProdCtx = document.getElementById('topProductsChart').getContext('2d');
+        const topProdLabels = [{% for p in top_products %}"{{ p.product_name }}",{% endfor %}];
+        const topProdData = [{% for p in top_products %}{{ p.total_sold }},{% endfor %}];
+
+        new Chart(topProdCtx, {
+            type: 'bar',
+            data: {
+                labels: topProdLabels,
+                datasets: [{
+                    label: 'Units Sold',
+                    data: topProdData,
+                    backgroundColor: [colorPrimary, colorPrimaryLight, colorAccent, colorAccentLight, 'hsl(164, 20%, 75%)'],
+                    borderRadius: 8,
+                    borderWidth: 0,
+                    barThickness: 16
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1a2e26',
+                        padding: 10,
+                        titleFont: { family: 'Inter', weight: 'bold' },
+                        bodyFont: { family: 'Inter' }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: 'Inter', size: 10 } }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { font: { family: 'Inter', size: 11, weight: 'bold' } }
+                    }
+                }
+            }
+        });
+        {% endif %}
+
+        // 2. Order Status Doughnut Chart
+        {% if order_status_counts %}
+        const orderCtx = document.getElementById('orderStatusChart').getContext('2d');
+        const orderLabels = [{% for stat in order_status_counts %}"{{ stat.status }}",{% endfor %}];
+        const orderData = [{% for stat in order_status_counts %}{{ stat.status_count }},{% endfor %}];
+
+        // Map statuses to themed colors
+        const bgColors = orderLabels.map(label => {
+            if (label === 'DELIVERED') return colorPrimary;
+            if (label === 'PENDING') return colorWarning;
+            if (label === 'CANCELLED') return colorDanger;
+            if (label === 'SHIPPED') return colorInfo;
+            if (label === 'PACKED') return colorAccent;
+            return 'hsl(164, 15%, 75%)';
+        });
+
+        new Chart(orderCtx, {
+            type: 'doughnut',
+            data: {
+                labels: orderLabels,
+                datasets: [{
+                    data: orderData,
+                    backgroundColor: bgColors,
+                    borderWidth: 3,
+                    borderColor: '#ffffff',
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: { family: 'Inter', size: 11, weight: 'bold' },
+                            padding: 15,
+                            boxWidth: 12
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1a2e26',
+                        padding: 10,
+                        titleFont: { family: 'Inter', weight: 'bold' },
+                        bodyFont: { family: 'Inter' }
+                    }
+                }
+            }
+        });
+        {% endif %}
+    });
+</script>
+{% endif %}
 {% endblock %}

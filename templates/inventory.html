@@ -3,66 +3,77 @@
 {% block title %}Inventory | IMS{% endblock %}
 
 {% block content %}
-<div class="row mb-5 align-items-center">
+<div class="row mb-4 align-items-center">
     <div class="col-lg-6">
-        <h2 class="mb-1">Inventory</h2>
-        <p class="text-muted">Current stock levels for all products. Update stock manually if needed.</p>
+        <h1 class="mb-1 text-primary"><i class="bi bi-grid-3x3-gap me-2 text-accent"></i>Inventory Catalog</h1>
+        <p class="text-muted mb-0"><i class="bi bi-info-circle me-1"></i>Monitor item quantities and edit threshold levels. Low stock items are automatically flagged.</p>
     </div>
     <div class="col-lg-6 text-lg-end">
-        <button class="btn btn-outline-primary" onclick="location.reload()">Refresh</button>
+        <button class="btn btn-outline-primary shadow-sm" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh Catalog
+        </button>
     </div>
 </div>
 
-<div class="table-container">
-    <table class="table table-hover">
-        <thead>
-            <tr>
-                <th>Product ID</th>
-                <th>Product Name</th>
-                <th>Current Stock</th>
-                <th>Min Threshold</th>
-                <th>Stock Status</th>
-                <th>Last Restocked</th>
-                <th class="text-center">Update</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% if inventory %}
-                {% for item in inventory %}
-                <tr class="{% if item.current_stock < item.min_threshold %}table-danger bg-opacity-10{% endif %}">
-                    <td class="fw-bold">#{{ item.product_id }}</td>
-                    <td class="fw-semibold">{{ item.product_name }}</td>
-                    <td class="fs-5 fw-bold">{{ item.current_stock }}</td>
-                    <td class="text-muted">{{ item.min_threshold }}</td>
-                    <td>
-                        {% if item.current_stock < item.min_threshold %}
-                            <span class="badge bg-danger">LOW</span>
-                        {% elif item.current_stock < item.min_threshold * 2 %}
-                            <span class="badge bg-warning text-dark">WARNING</span>
-                        {% else %}
-                            <span class="badge bg-success">OK</span>
-                        {% endif %}
-                    </td>
-                    <td class="small text-muted">{{ item.last_restock_date }}</td>
-                    <td>
-                        <form action="/adjust-stock" method="POST" class="d-inline-flex justify-content-center" style="display: flex; flex-wrap: nowrap; align-items: center; white-space: nowrap;">
-                            <input type="hidden" name="product_id" value="{{ item.product_id }}">
-                            <div class="input-group input-group-sm shadow-sm overflow-hidden">
-                                <input type="number" name="new_qty" class="form-control border-0 bg-light" value="{{ item.current_stock }}" style="width: 70px;">
-                                <button type="submit" class="btn btn-primary border-0 btn-sm">Set</button>
-                            </div>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            {% else %}
-                <tr>
-                    <td colspan="7" class="text-center text-muted py-5">
-                        <em>No inventory data found.</em>
-                    </td>
-                </tr>
-            {% endif %}
-        </tbody>
-    </table>
+<div class="card border-0 shadow-medium">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Product ID</th>
+                        <th>Product Name</th>
+                        <th>Current Stock</th>
+                        <th>Min Threshold</th>
+                        <th>Stock Status</th>
+                        <th>Last Restocked</th>
+                        <th class="text-center" style="min-width: 180px;">Adjust Quantity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if inventory %}
+                        {% for item in inventory %}
+                        <tr class="{% if item.current_stock < item.min_threshold %}low-stock-alert-row{% endif %}">
+                            <td class="ps-4 fw-bold text-secondary">#{{ item.product_id }}</td>
+                            <td class="fw-bold text-primary">{{ item.product_name }}</td>
+                            <td class="fs-5 fw-bold text-dark">{{ item.current_stock }}</td>
+                            <td class="text-muted fw-semibold">{{ item.min_threshold }}</td>
+                            <td>
+                                {% if item.current_stock < item.min_threshold %}
+                                    <span class="status-indicator-pill status-cancelled">Low Stock</span>
+                                {% elif item.current_stock < item.min_threshold * 2 %}
+                                    <span class="status-indicator-pill status-inactive">Warning</span>
+                                {% else %}
+                                    <span class="status-indicator-pill status-active">In Stock</span>
+                                {% endif %}
+                            </td>
+                            <td class="small text-muted"><i class="bi bi-calendar3 me-1"></i>{{ item.last_restock_date }}</td>
+                            <td class="text-center">
+                                <form action="/adjust-stock" method="POST" class="d-inline-flex align-items-center justify-content-center">
+                                    <input type="hidden" name="product_id" value="{{ item.product_id }}">
+                                    <div class="stepper-container shadow-sm me-2">
+                                        <button type="button" class="stepper-btn" onclick="const inp = this.nextElementSibling; inp.value = Math.max(0, parseInt(inp.value) - 1);">-</button>
+                                        <input type="number" name="new_qty" class="stepper-input" value="{{ item.current_stock }}" min="0" required>
+                                        <button type="button" class="stepper-btn" onclick="const inp = this.previousElementSibling; inp.value = parseInt(inp.value) + 1;">+</button>
+                                    </div>
+                                    <button type="submit" class="btn btn-sm btn-primary py-1 px-3" style="border-radius: 8px;" title="Set Quantity">
+                                        <i class="bi bi-check-lg"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-5">
+                                <i class="bi bi-boxes fs-1 mb-3 d-block"></i>
+                                <em>No products found in inventory listings.</em>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 {% endblock %}
