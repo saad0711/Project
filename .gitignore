@@ -7,9 +7,10 @@ __pycache__/
 venv/
 env/
 .venv/
+.env
 
 # SQLite Database (local dev only — seed with setup_db.sql for production)
-inventory.db
+inventory.db*
 
 # IDE / OS
 .vscode/
